@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medivox</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --container-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --primary-color: #4a9eff;
+            --secondary-color: #252525;
+            --tertiary-color: #353535;
+            --success-color: #4CAF50;
+            --error-color: #ff4444;
+            --disabled-color: #666666;
+            --font-family: 'Arial', sans-serif;
+        }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .main-container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--bg-color);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .status-bar {
+            background-color: var(--secondary-color);
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        .actions-bar, .result-header, .result-actions {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        #connectionStatus {
+            font-weight: bold;
+            color: var(--error-color);
+        }
+        #connectionStatus::before {
+            content: '●';
+            margin-right: 8px;
+        }
+        .tab-content {
+            background-color: var(--container-bg);
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 8px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 2px dashed var(--tertiary-color);
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+        .tab-content.dragover {
+            border-color: var(--primary-color);
+            background-color: var(--secondary-color);
+        }
+        #dropzone-icon {
+            font-size: 48px;
+        }
+        #dropzone-text {
+            font-size: 16px;
+            color: #ccc;
+            margin: 10px 0;
+        }
+        #browseBtn {
+             background-color: var(--primary-color);
+             color: white;
+             padding: 10px 20px;
+             font-size: 14px;
+             border: none;
+             border-radius: 4px;
+             cursor: pointer;
+        }
+        #fileLabel {
+            margin-top: 15px;
+            font-style: italic;
+            color: var(--primary-color);
+        }
+        .actions-bar {
+            background-color: var(--bg-color);
+            justify-content: flex-start;
+        }
+        label {
+             margin-right: 10px;
+        }
+        select {
+            background-color: var(--tertiary-color);
+            color: var(--text-color);
+            border: 1px solid var(--tertiary-color);
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #processBtn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #processBtn:disabled {
+            background-color: var(--disabled-color);
+            cursor: not-allowed;
+        }
+        #progressLabel {
+            margin-left: 20px;
+            font-size: 14px;
+            color: var(--primary-color);
+            display: none;
+        }
+        .result-section { display: none; }
+        .result-header { justify-content: space-between; }
+        .result-header h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--success-color);
+            margin: 0;
+        }
+        #newSessionBtn, #copyBtn, #saveBtn {
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: white;
+            padding: 8px 15px;
+        }
+        #newSessionBtn { background-color: var(--container-bg); }
+        #resultText {
+            width: 100%;
+            height: 250px;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+            padding: 15px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .result-actions { justify-content: center; gap: 20px; margin-bottom: 0; }
+        #copyBtn { background-color: var(--success-color); }
+        #saveBtn { background-color: #2196F3; }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <h1>Medivox HDL</h1>
+
+        <div class="status-bar">
+            <div id="connectionStatus">Déconnecté</div>
+        </div>
+
+        <div id="upload-section">
+            <div id="dropzone" class="tab-content">
+                <div id="dropzone-icon">📁</div>
+                <div id="dropzone-text">Glissez-déposez votre fichier audio ici, ou cliquez sur Parcourir</div>
+                <input type="file" id="fileInput" accept="audio/*" hidden>
+                <button id="browseBtn">Parcourir</button>
+                <div id="fileLabel"></div>
+            </div>
+    
+            <div class="actions-bar">
+                <div>
+                    <label for="templateSelect">Modèle :</label>
+                    <select id="templateSelect">
+                        <option value="Standard">Standard</option>
+                    </select>
+                </div>
+                <button id="processBtn" disabled>Transcrire et Formater</button>
+                <div id="progressLabel"></div>
+            </div>
+        </div>
+
+
+        <div id="resultSection" class="result-section">
+            <div class="result-header">
+                <h2>✅ Rapport Prêt</h2>
+                <button id="newSessionBtn">Nouvelle Session</button>
+            </div>
+            <textarea id="resultText" readonly></textarea>
+            <div class="result-actions">
+                <button id="copyBtn">Copier le Rapport</button>
+                <button id="saveBtn">Enregistrer dans un Fichier</button>
+            </div>
+        </div>
+    </div>
+
+   <script>
+document.addEventListener('DOMContentLoaded', () => {
+  const connectionStatus = document.getElementById('connectionStatus');
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const browseBtn = document.getElementById('browseBtn');
+  const fileLabel = document.getElementById('fileLabel');
+  const templateSelect = document.getElementById('templateSelect');
+  const processBtn = document.getElementById('processBtn');
+  const progressLabel = document.getElementById('progressLabel');
+  const uploadSection = document.getElementById('upload-section');
+  const resultSection = document.getElementById('resultSection');
+  const resultText = document.getElementById('resultText');
+  const newSessionBtn = document.getElementById('newSessionBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const saveBtn = document.getElementById('saveBtn');
+
+  const PERMANENT_SERVER_ADDRESS = 'my-radiology-server.medivox.ca';
+
+  let socket = null;
+  let currentFile = null;
+  let transcribedText = "";
+  let templates = {};
+
+  // ✅ Keep only a single “Standard (FR serveur)” entry that does NOT send any template content.
+  const defaultTemplates = {
+    "Standard (FR serveur)": "" // empty => we won't send 'template' so the server's French template is used
+  };
+
+  function loadTemplates(loadedTemplates) {
+    const hasCustom = loadedTemplates && Object.keys(loadedTemplates).length > 0;
+    templates = hasCustom ? loadedTemplates : defaultTemplates;
+    templateSelect.innerHTML = '';
+    for (const name in templates) {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      templateSelect.appendChild(option);
+    }
+  }
+  loadTemplates({}); // no custom templates for now
+
+  function updateUIForConnection(isConnected) {
+    if (isConnected) {
+      connectionStatus.textContent = 'Connecté';
+      connectionStatus.style.color = 'var(--success-color)';
+    } else {
+      connectionStatus.textContent = 'Déconnecté';
+      connectionStatus.style.color = 'var(--error-color)';
+    }
+    updateProcessButtonState();
+  }
+
+  function updateProcessButtonState() {
+    processBtn.disabled = !socket || socket.readyState !== WebSocket.OPEN || !currentFile;
+  }
+
+  function showProgress(message) {
+    progressLabel.textContent = message;
+    progressLabel.style.display = 'block';
+  }
+
+  function hideProgress() {
+    progressLabel.style.display = 'none';
+  }
+
+  function toggleSections(showResult) {
+    resultSection.style.display = showResult ? 'block' : 'none';
+    uploadSection.style.display = showResult ? 'none' : 'block';
+  }
+
+  function resetToStart() {
+    toggleSections(false);
+    currentFile = null;
+    fileLabel.textContent = "";
+    resultText.value = "";
+    transcribedText = "";
+    fileInput.value = '';
+    updateProcessButtonState();
+  }
+
+  function connectWebSocket() {
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+
+    const url = `wss://${PERMANENT_SERVER_ADDRESS}`;
+    connectionStatus.textContent = 'Connexion...';
+    connectionStatus.style.color = 'orange';
+
+    socket = new WebSocket(url);
+
+    socket.onopen = () => {
+      console.log('Connecté au serveur');
+      updateUIForConnection(true);
+      showProgress("Connecté au serveur de transcription.");
+      setTimeout(hideProgress, 3000);
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      handleServerMessage(data);
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+      updateUIForConnection(false);
+    };
+
+    socket.onclose = () => {
+      console.log('Déconnecté du serveur. Nouvelle tentative dans 5 secondes...');
+      socket = null;
+      updateUIForConnection(false);
+      setTimeout(connectWebSocket, 5000);
+    };
+  }
+
+  function handleServerMessage(data) {
+    const { action, message, text, performance } = data;
+    switch (action) {
+      case 'progress':
+        showProgress(message);
+        break;
+      case 'transcription_complete':
+        transcribedText = text || "Erreur : aucun texte reçu.";
+        const speed = performance ? `(${performance.speed || 'N/A'})` : '';
+        showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
+        requestFormatting();
+        break;
+      case 'formatting_complete':
+        hideProgress();
+        resultText.value = text || "Erreur : la mise en forme a échoué.";
+        processBtn.disabled = false;
+        processBtn.textContent = "Transcrire et Formater";
+        toggleSections(true);
+        break;
+      case 'error':
+        alert(`Erreur du serveur: ${message || 'Erreur inconnue.'}`);
+        resetUIafterProcessing();
+        break;
+    }
+  }
+
+  function requestFormatting() {
+    const templateName = templateSelect.value;
+
+    // ✅ Do NOT send a 'template' by default so the server enforces the FR house-style.
+    const message = {
+      action: "format_text",
+      text: transcribedText
+    };
+
+    // If in the future you add custom templates (all-French, consistent with server rules),
+    // you can conditionally attach them here:
+    if (templateName && templates[templateName] && templates[templateName].trim().length > 0) {
+      message.template = templates[templateName];
+      message.template_name = templateName;
+    }
+
+    socket.send(JSON.stringify(message));
+  }
+
+  function handleFileSelect(file) {
+    if (!file || !file.type.startsWith('audio/')) {
+      alert('Veuillez sélectionner un fichier audio.');
+      return;
+    }
+    currentFile = file;
+    fileLabel.textContent = `Sélectionné : ${file.name}`;
+    updateProcessButtonState();
+  }
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.remove('dragover');
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length) handleFileSelect(files[0]);
+  });
+
+  browseBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFileSelect(e.target.files[0]);
+  });
+
+  processBtn.addEventListener('click', () => {
+    if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+    processBtn.disabled = true;
+    processBtn.textContent = 'Traitement...';
+    showProgress("Lecture et envoi de l’audio au serveur...");
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Audio = e.target.result.split(',')[1];
+      const message = {
+        action: "transcribe_audio",
+        audio: base64Audio
+      };
+      socket.send(JSON.stringify(message));
+    };
+    reader.onerror = (error) => {
+      console.error("Erreur de lecture du fichier :", error);
+      alert("Échec de la lecture du fichier audio.");
+      resetUIafterProcessing();
+    };
+    reader.readAsDataURL(currentFile);
+  });
+
+  function resetUIafterProcessing() {
+    processBtn.disabled = false;
+    processBtn.textContent = 'Transcrire et Formater';
+    hideProgress();
+    updateProcessButtonState();
+  }
+
+  newSessionBtn.addEventListener('click', resetToStart);
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(resultText.value)
+      .then(() => alert("Rapport copié dans le presse-papiers !"))
+      .catch(() => alert("Échec de la copie du rapport."));
+  });
+
+  saveBtn.addEventListener('click', () => {
+    const blob = new Blob([resultText.value], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `radiology_report_${Date.now()}.txt`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  });
+
+  // Auto-connection
+  connectWebSocket();
+});
+</script>
+
+</body>
+</html>
