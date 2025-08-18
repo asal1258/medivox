@@ -419,11 +419,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     newSessionBtn.addEventListener('click', resetToStart);
+
+    // --- UPDATED 'COPY' BUTTON FUNCTIONALITY ---
     copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(resultText.innerText)
-            .then(() => alert("Rapport copié dans le presse-papiers !"))
-            .catch(() => alert("Échec de la copie du rapport."));
+        // 1. Get the innerHTML from the result display. This includes <strong> tags.
+        const htmlContent = resultText.innerHTML;
+
+        // 2. Create a wrapper with inline styles to preserve font formatting.
+        // These styles match the CSS you applied to #resultText.
+        const styledHtml = `<div style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;">${htmlContent}</div>`;
+        
+        // 3. Get the plain text version as a fallback for simple editors like Notepad.
+        const plainText = resultText.innerText;
+
+        try {
+            // 4. Use the Clipboard API to write both HTML and plain text versions.
+            const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
+            const textBlob = new Blob([plainText], { type: 'text/plain' });
+            const clipboardItem = new ClipboardItem({
+                'text/html': htmlBlob,
+                'text/plain': textBlob
+            });
+
+            navigator.clipboard.write([clipboardItem])
+                .then(() => alert("Rapport copié dans le presse-papiers !"))
+                .catch(err => {
+                    console.error("Échec de la copie : ", err);
+                    alert("Échec de la copie du rapport.");
+                });
+        } catch (error) {
+            console.error("L'API Clipboard n'est pas prise en charge ou a échoué : ", error);
+            // Fallback for older browsers if needed, though it might only copy plain text.
+            navigator.clipboard.writeText(plainText).then(() => alert("Rapport (texte brut) copié !"));
+        }
     });
+    
     saveBtn.addEventListener('click', () => {
         const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement('a');
