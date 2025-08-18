@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         processBtn.disabled = true;
         processBtn.textContent = 'Traitement...';
-        showProgress("Lecture et envoi de l’audio au serveur...");
+        showProgress("Lecture et envoi de l'audio au serveur...");
 
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -419,31 +419,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
     newSessionBtn.addEventListener('click', resetToStart);
 
-    // This 'copy' functionality remains the same, as it correctly handles HTML.
+    // FIXED: Word-compatible copy functionality
     copyBtn.addEventListener('click', () => {
         const htmlContent = resultText.innerHTML;
-        const styledHtml = `<div style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;">${htmlContent}</div>`;
+        
+        // Convert <br> tags to proper line breaks for Word
+        const wordCompatibleHtml = htmlContent.replace(/<br\s*\/?>/gi, '</p><p>');
+        
+        // Create properly structured HTML for Word with complete document structure
+        const styledHtml = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+                  xmlns:w="urn:schemas-microsoft-com:office:word" 
+                  xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="utf-8">
+                <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom><w:DoNotPromptForConvert/><w:DoNotShowInsertionsAndDeletions/></w:WordDocument></xml><![endif]-->
+                <style>
+                    p { margin: 0; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
+                    span[style*="font-weight:bold"] { font-weight: bold !important; }
+                </style>
+            </head>
+            <body>
+                <p>${wordCompatibleHtml}</p>
+            </body>
+            </html>`;
+
+        // Create plain text version as fallback
         const plainText = resultText.innerText;
 
         try {
+            // Try modern clipboard API first
             const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
             const textBlob = new Blob([plainText], { type: 'text/plain' });
+            
             const clipboardItem = new ClipboardItem({
                 'text/html': htmlBlob,
                 'text/plain': textBlob
             });
 
             navigator.clipboard.write([clipboardItem])
-                .then(() => alert("Rapport copié dans le presse-papiers !"))
+                .then(() => alert("Rapport copié dans le presse-papiers avec formatage !"))
                 .catch(err => {
-                    console.error("Échec de la copie : ", err);
-                    alert("Échec de la copie du rapport.");
+                    console.error("Échec de la copie moderne : ", err);
+                    fallbackCopy(styledHtml, plainText);
                 });
         } catch (error) {
-            console.error("L'API Clipboard n'est pas prise en charge ou a échoué : ", error);
-            navigator.clipboard.writeText(plainText).then(() => alert("Rapport (texte brut) copié !"));
+            console.error("L'API Clipboard moderne n'est pas prise en charge : ", error);
+            fallbackCopy(styledHtml, plainText);
         }
     });
+
+    // Fallback copy method for better Word compatibility
+    function fallbackCopy(htmlContent, plainText) {
+        // Create a temporary container
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        document.body.appendChild(tempDiv);
+
+        // Select the content
+        const range = document.createRange();
+        range.selectNodeContents(tempDiv);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        try {
+            // Execute copy command
+            const successful = document.execCommand('copy');
+            if (successful) {
+                alert("Rapport copié dans le presse-papiers avec formatage !");
+            } else {
+                throw new Error('Copy command failed');
+            }
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            // Final fallback to plain text
+            navigator.clipboard.writeText(plainText)
+                .then(() => alert("Rapport copié (texte brut uniquement)"))
+                .catch(() => alert("Échec de la copie du rapport"));
+        } finally {
+            // Clean up
+            document.body.removeChild(tempDiv);
+            selection.removeAllRanges();
+        }
+    }
     
     saveBtn.addEventListener('click', () => {
         const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
