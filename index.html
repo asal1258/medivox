@@ -172,9 +172,9 @@
             font-size: 11pt;
             line-height: 1.5; /* Improves readability */
         }
-        /* Ensure our bold tags are actually bold */
-        #resultText strong {
-            font-weight: bold;
+        /* This rule is now less critical but good for browser display */
+        #resultText span[style*="font-weight:bold"] {
+            font-weight: bold !important;
         }
 
         .result-actions { justify-content: center; gap: 20px; margin-bottom: 0; }
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     
-    // --- CORRECTED FORMATTING FUNCTION ---
+    // --- CORRECTED FORMATTING FUNCTION (V2) ---
     function formatTextAsHtml(text) {
         if (!text) return "";
 
@@ -317,15 +317,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formattedLines = lines.map(line => {
             let processedLine = line.trim();
+            const boldStyle = 'font-weight:bold;';
 
-            // Rule 1: FIRST, always remove asterisks and convert to <strong> tags.
-            // This cleans the line for any subsequent rules.
-            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Rule 1: Replace markdown bolding with a span that has an inline bold style.
+            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, `<span style="${boldStyle}">$1</span>`);
 
-            // Rule 2: If a line is in ALL CAPS and not already bolded, make it bold.
-            // This handles headings that don't come with asterisks.
-            if (!processedLine.startsWith('<strong>') && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
-                processedLine = `<strong>${processedLine}</strong>`;
+            // Rule 2: If a line is ALL CAPS and not already bolded, wrap it in a styled span.
+            if (!processedLine.includes(boldStyle) && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
+                processedLine = `<span style="${boldStyle}">${processedLine}</span>`;
             }
             
             return processedLine;
@@ -420,20 +419,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     newSessionBtn.addEventListener('click', resetToStart);
 
-    // --- UPDATED 'COPY' BUTTON FUNCTIONALITY ---
+    // This 'copy' functionality remains the same, as it correctly handles HTML.
     copyBtn.addEventListener('click', () => {
-        // 1. Get the innerHTML from the result display. This includes <strong> tags.
         const htmlContent = resultText.innerHTML;
-
-        // 2. Create a wrapper with inline styles to preserve font formatting.
-        // These styles match the CSS you applied to #resultText.
         const styledHtml = `<div style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;">${htmlContent}</div>`;
-        
-        // 3. Get the plain text version as a fallback for simple editors like Notepad.
         const plainText = resultText.innerText;
 
         try {
-            // 4. Use the Clipboard API to write both HTML and plain text versions.
             const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
             const textBlob = new Blob([plainText], { type: 'text/plain' });
             const clipboardItem = new ClipboardItem({
@@ -449,7 +441,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         } catch (error) {
             console.error("L'API Clipboard n'est pas prise en charge ou a échoué : ", error);
-            // Fallback for older browsers if needed, though it might only copy plain text.
             navigator.clipboard.writeText(plainText).then(() => alert("Rapport (texte brut) copié !"));
         }
     });
