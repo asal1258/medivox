@@ -159,21 +159,24 @@
         /* --- MODIFICATIONS START HERE --- */
         #resultText {
             width: 100%;
-            min-height: 250px; /* Set a minimum height */
-            max-height: 70vh; /* Allow it to grow up to 70% of the viewport height */
-            overflow-y: auto; /* Add a scrollbar if it exceeds max-height */
+            max-height: 70vh; /* Prevent it from becoming excessively long */
+            overflow-y: auto;   /* Add scrollbar if content exceeds max-height */
             background-color: var(--container-bg);
             color: var(--text-color);
             border: 1px solid var(--primary-color);
             border-radius: 4px;
             padding: 15px;
             box-sizing: border-box;
-            text-align: left; /* Ensure text is aligned left */
-            white-space: pre-wrap; /* Respect newlines and spaces from the source */
+            text-align: left;
+            white-space: pre-wrap;
 
             /* --- FONT FORMATTING --- */
             font-family: Arial, sans-serif;
             font-size: 11pt;
+        }
+        /* Make bold text appear correctly */
+        #resultText strong {
+            font-weight: bold;
         }
         /* --- MODIFICATIONS END HERE --- */
 
@@ -228,250 +231,245 @@
 
    <script>
 document.addEventListener('DOMContentLoaded', () => {
- const connectionStatus = document.getElementById('connectionStatus');
- const dropzone = document.getElementById('dropzone');
- const fileInput = document.getElementById('fileInput');
- const browseBtn = document.getElementById('browseBtn');
- const fileLabel = document.getElementById('fileLabel');
- const templateSelect = document.getElementById('templateSelect');
- const processBtn = document.getElementById('processBtn');
- const progressLabel = document.getElementById('progressLabel');
- const uploadSection = document.getElementById('upload-section');
- const resultSection = document.getElementById('resultSection');
- // MODIFICATION: resultText is now a div
- const resultText = document.getElementById('resultText');
- const newSessionBtn = document.getElementById('newSessionBtn');
- const copyBtn = document.getElementById('copyBtn');
- const saveBtn = document.getElementById('saveBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const browseBtn = document.getElementById('browseBtn');
+    const fileLabel = document.getElementById('fileLabel');
+    const templateSelect = document.getElementById('templateSelect');
+    const processBtn = document.getElementById('processBtn');
+    const progressLabel = document.getElementById('progressLabel');
+    const uploadSection = document.getElementById('upload-section');
+    const resultSection = document.getElementById('resultSection');
+    const resultText = document.getElementById('resultText');
+    const newSessionBtn = document.getElementById('newSessionBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const saveBtn = document.getElementById('saveBtn');
 
- const PERMANENT_SERVER_ADDRESS = 'my-radiology-server.medivox.ca';
+    const PERMANENT_SERVER_ADDRESS = 'my-radiology-server.medivox.ca';
 
- let socket = null;
- let currentFile = null;
- let transcribedText = "";
- let templates = {};
+    let socket = null;
+    let currentFile = null;
+    let transcribedText = "";
+    let templates = {};
 
- // ✅ Keep only a single “Standard (FR serveur)” entry that does NOT send any template content.
- const defaultTemplates = {
-   "Standard": "" // empty => we won't send 'template' so the server's French template is used
- };
+    const defaultTemplates = {
+      "Standard": ""
+    };
 
- function loadTemplates(loadedTemplates) {
-   const hasCustom = loadedTemplates && Object.keys(loadedTemplates).length > 0;
-   templates = hasCustom ? loadedTemplates : defaultTemplates;
-   templateSelect.innerHTML = '';
-   for (const name in templates) {
-     const option = document.createElement('option');
-     option.value = name;
-     option.textContent = name;
-     templateSelect.appendChild(option);
-   }
- }
- loadTemplates({}); // no custom templates for now
+    function loadTemplates(loadedTemplates) {
+        const hasCustom = loadedTemplates && Object.keys(loadedTemplates).length > 0;
+        templates = hasCustom ? loadedTemplates : defaultTemplates;
+        templateSelect.innerHTML = '';
+        for (const name in templates) {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            templateSelect.appendChild(option);
+        }
+    }
+    loadTemplates({});
 
- function updateUIForConnection(isConnected) {
-   if (isConnected) {
-     connectionStatus.textContent = 'Connecté';
-     connectionStatus.style.color = 'var(--success-color)';
-   } else {
-     connectionStatus.textContent = 'Déconnecté';
-     connectionStatus.style.color = 'var(--error-color)';
-   }
-   updateProcessButtonState();
- }
+    function updateUIForConnection(isConnected) {
+        if (isConnected) {
+            connectionStatus.textContent = 'Connecté';
+            connectionStatus.style.color = 'var(--success-color)';
+        } else {
+            connectionStatus.textContent = 'Déconnecté';
+            connectionStatus.style.color = 'var(--error-color)';
+        }
+        updateProcessButtonState();
+    }
 
- function updateProcessButtonState() {
-   processBtn.disabled = !socket || socket.readyState !== WebSocket.OPEN || !currentFile;
- }
+    function updateProcessButtonState() {
+        processBtn.disabled = !socket || socket.readyState !== WebSocket.OPEN || !currentFile;
+    }
 
- function showProgress(message) {
-   progressLabel.textContent = message;
-   progressLabel.style.display = 'block';
- }
+    function showProgress(message) {
+        progressLabel.textContent = message;
+        progressLabel.style.display = 'block';
+    }
 
- function hideProgress() {
-   progressLabel.style.display = 'none';
- }
+    function hideProgress() {
+        progressLabel.style.display = 'none';
+    }
 
- function toggleSections(showResult) {
-   resultSection.style.display = showResult ? 'block' : 'none';
-   uploadSection.style.display = showResult ? 'none' : 'block';
- }
+    function toggleSections(showResult) {
+        resultSection.style.display = showResult ? 'block' : 'none';
+        uploadSection.style.display = showResult ? 'none' : 'block';
+    }
 
- function resetToStart() {
-   toggleSections(false);
-   currentFile = null;
-   fileLabel.textContent = "";
-   // MODIFICATION: Use innerHTML for the div
-   resultText.innerHTML = "";
-   transcribedText = "";
-   fileInput.value = '';
-   updateProcessButtonState();
- }
+    function resetToStart() {
+        toggleSections(false);
+        currentFile = null;
+        fileLabel.textContent = "";
+        resultText.innerHTML = "";
+        transcribedText = "";
+        fileInput.value = '';
+        updateProcessButtonState();
+    }
 
- function connectWebSocket() {
-   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+    function connectWebSocket() {
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
-   const url = `wss://${PERMANENT_SERVER_ADDRESS}`;
-   connectionStatus.textContent = 'Connexion...';
-   connectionStatus.style.color = 'orange';
+        const url = `wss://${PERMANENT_SERVER_ADDRESS}`;
+        connectionStatus.textContent = 'Connexion...';
+        connectionStatus.style.color = 'orange';
 
-   socket = new WebSocket(url);
+        socket = new WebSocket(url);
 
-   socket.onopen = () => {
-     console.log('Connecté au serveur');
-     updateUIForConnection(true);
-     showProgress("Connecté au serveur de transcription.");
-     setTimeout(hideProgress, 3000);
-   };
+        socket.onopen = () => {
+            console.log('Connecté au serveur');
+            updateUIForConnection(true);
+            showProgress("Connecté au serveur de transcription.");
+            setTimeout(hideProgress, 3000);
+        };
 
-   socket.onmessage = (event) => {
-     const data = JSON.parse(event.data);
-     handleServerMessage(data);
-   };
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            handleServerMessage(data);
+        };
 
-   socket.onerror = (error) => {
-     console.error('WebSocket Error:', error);
-     updateUIForConnection(false);
-   };
+        socket.onerror = (error) => {
+            console.error('WebSocket Error:', error);
+            updateUIForConnection(false);
+        };
 
-   socket.onclose = () => {
-     console.log('Déconnecté du serveur. Nouvelle tentative dans 5 secondes...');
-     socket = null;
-     updateUIForConnection(false);
-     setTimeout(connectWebSocket, 5000);
-   };
- }
+        socket.onclose = () => {
+            console.log('Déconnecté du serveur. Nouvelle tentative dans 5 secondes...');
+            socket = null;
+            updateUIForConnection(false);
+            setTimeout(connectWebSocket, 5000);
+        };
+    }
+    
+    // --- NEW FUNCTION TO FORMAT TEXT ---
+    function formatServerText(text) {
+        // Replace **text** with <strong>text</strong> for bolding
+        return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    }
 
- function handleServerMessage(data) {
-   const { action, message, text, performance } = data;
-   switch (action) {
-     case 'progress':
-       showProgress(message);
-       break;
-     case 'transcription_complete':
-       transcribedText = text || "Erreur : aucun texte reçu.";
-       const speed = performance ? `(${performance.speed || 'N/A'})` : '';
-       showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
-       requestFormatting();
-       break;
-     case 'formatting_complete':
-       hideProgress();
-       // MODIFICATION: Use innerHTML to render formatted text in the div
-       // The server should send text with HTML tags like <b> for bold.
-       resultText.innerHTML = text || "Erreur : la mise en forme a échoué.";
-       processBtn.disabled = false;
-       processBtn.textContent = "Transcrire et Formater";
-       toggleSections(true);
-       break;
-     case 'error':
-       alert(`Erreur du serveur: ${message || 'Erreur inconnue.'}`);
-       resetUIafterProcessing();
-       break;
-   }
- }
+    function handleServerMessage(data) {
+        const { action, message, text, performance } = data;
+        switch (action) {
+            case 'progress':
+                showProgress(message);
+                break;
+            case 'transcription_complete':
+                transcribedText = text || "Erreur : aucun texte reçu.";
+                const speed = performance ? `(${performance.speed || 'N/A'})` : '';
+                showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
+                requestFormatting();
+                break;
+            case 'formatting_complete':
+                hideProgress();
+                // MODIFICATION: Use the new formatting function before setting innerHTML
+                resultText.innerHTML = formatServerText(text || "Erreur : la mise en forme a échoué.");
+                processBtn.disabled = false;
+                processBtn.textContent = "Transcrire et Formater";
+                toggleSections(true);
+                break;
+            case 'error':
+                alert(`Erreur du serveur: ${message || 'Erreur inconnue.'}`);
+                resetUIafterProcessing();
+                break;
+        }
+    }
 
- function requestFormatting() {
-   const templateName = templateSelect.value;
+    function requestFormatting() {
+        const templateName = templateSelect.value;
+        const message = {
+            action: "format_text",
+            text: transcribedText
+        };
 
-   // ✅ Do NOT send a 'template' by default so the server enforces the FR house-style.
-   const message = {
-     action: "format_text",
-     text: transcribedText
-   };
+        if (templateName && templates[templateName] && templates[templateName].trim().length > 0) {
+            message.template = templates[templateName];
+            message.template_name = templateName;
+        }
+        socket.send(JSON.stringify(message));
+    }
 
-   // If in the future you add custom templates (all-French, consistent with server rules),
-   // you can conditionally attach them here:
-   if (templateName && templates[templateName] && templates[templateName].trim().length > 0) {
-     message.template = templates[templateName];
-     message.template_name = templateName;
-   }
+    function handleFileSelect(file) {
+        if (!file || !file.type.startsWith('audio/')) {
+            alert('Veuillez sélectionner un fichier audio.');
+            return;
+        }
+        currentFile = file;
+        fileLabel.textContent = `Sélectionné : ${file.name}`;
+        updateProcessButtonState();
+    }
 
-   socket.send(JSON.stringify(message));
- }
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropzone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length) handleFileSelect(files[0]);
+    });
 
- function handleFileSelect(file) {
-   if (!file || !file.type.startsWith('audio/')) {
-     alert('Veuillez sélectionner un fichier audio.');
-     return;
-   }
-   currentFile = file;
-   fileLabel.textContent = `Sélectionné : ${file.name}`;
-   updateProcessButtonState();
- }
+    browseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFileSelect(e.target.files[0]);
+    });
 
- dropzone.addEventListener('dragover', (e) => {
-   e.preventDefault(); e.stopPropagation();
-   dropzone.classList.add('dragover');
- });
- dropzone.addEventListener('dragleave', (e) => {
-   e.preventDefault(); e.stopPropagation();
-   dropzone.classList.remove('dragover');
- });
- dropzone.addEventListener('drop', (e) => {
-   e.preventDefault(); e.stopPropagation();
-   dropzone.classList.remove('dragover');
-   const files = e.dataTransfer.files;
-   if (files.length) handleFileSelect(files[0]);
- });
+    processBtn.addEventListener('click', () => {
+        if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) return;
 
- browseBtn.addEventListener('click', () => fileInput.click());
- fileInput.addEventListener('change', (e) => {
-   if (e.target.files.length) handleFileSelect(e.target.files[0]);
- });
+        processBtn.disabled = true;
+        processBtn.textContent = 'Traitement...';
+        showProgress("Lecture et envoi de l’audio au serveur...");
 
- processBtn.addEventListener('click', () => {
-   if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64Audio = e.target.result.split(',')[1];
+            const message = {
+                action: "transcribe_audio",
+                audio: base64Audio
+            };
+            socket.send(JSON.stringify(message));
+        };
+        reader.onerror = (error) => {
+            console.error("Erreur de lecture du fichier :", error);
+            alert("Échec de la lecture du fichier audio.");
+            resetUIafterProcessing();
+        };
+        reader.readAsDataURL(currentFile);
+    });
 
-   processBtn.disabled = true;
-   processBtn.textContent = 'Traitement...';
-   showProgress("Lecture et envoi de l’audio au serveur...");
+    function resetUIafterProcessing() {
+        processBtn.disabled = false;
+        processBtn.textContent = 'Transcrire et Formater';
+        hideProgress();
+        updateProcessButtonState();
+    }
 
-   const reader = new FileReader();
-   reader.onload = (e) => {
-     const base64Audio = e.target.result.split(',')[1];
-     const message = {
-       action: "transcribe_audio",
-       audio: base64Audio
-     };
-     socket.send(JSON.stringify(message));
-   };
-   reader.onerror = (error) => {
-     console.error("Erreur de lecture du fichier :", error);
-     alert("Échec de la lecture du fichier audio.");
-     resetUIafterProcessing();
-   };
-   reader.readAsDataURL(currentFile);
- });
+    newSessionBtn.addEventListener('click', resetToStart);
 
- function resetUIafterProcessing() {
-   processBtn.disabled = false;
-   processBtn.textContent = 'Transcrire et Formater';
-   hideProgress();
-   updateProcessButtonState();
- }
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(resultText.innerText)
+            .then(() => alert("Rapport copié dans le presse-papiers !"))
+            .catch(() => alert("Échec de la copie du rapport."));
+    });
 
- newSessionBtn.addEventListener('click', resetToStart);
+    saveBtn.addEventListener('click', () => {
+        const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `radiology_report_${Date.now()}.txt`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    });
 
- copyBtn.addEventListener('click', () => {
-    // MODIFICATION: Use innerText to copy the plain text content of the div
-   navigator.clipboard.writeText(resultText.innerText)
-     .then(() => alert("Rapport copié dans le presse-papiers !"))
-     .catch(() => alert("Échec de la copie du rapport."));
- });
-
- saveBtn.addEventListener('click', () => {
-    // MODIFICATION: Use innerText to save the plain text content of the div
-   const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
-   const link = document.createElement('a');
-   link.href = URL.createObjectURL(blob);
-   link.download = `radiology_report_${Date.now()}.txt`;
-   link.click();
-   URL.revokeObjectURL(link.href);
- });
-
- // Auto-connection
- connectWebSocket();
+    // Auto-connection
+    connectWebSocket();
 });
 </script>
 
