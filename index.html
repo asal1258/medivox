@@ -156,11 +156,10 @@
         }
         #newSessionBtn { background-color: var(--container-bg); }
         
-        /* --- MODIFICATIONS START HERE --- */
         #resultText {
             width: 100%;
-            max-height: 70vh; /* Prevent it from becoming excessively long */
-            overflow-y: auto;   /* Add scrollbar if content exceeds max-height */
+            max-height: 70vh; 
+            overflow-y: auto;
             background-color: var(--container-bg);
             color: var(--text-color);
             border: 1px solid var(--primary-color);
@@ -168,17 +167,15 @@
             padding: 15px;
             box-sizing: border-box;
             text-align: left;
-            white-space: pre-wrap;
-
-            /* --- FONT FORMATTING --- */
+            /* The font styling for the document */
             font-family: Arial, sans-serif;
             font-size: 11pt;
+            line-height: 1.5; /* Improves readability */
         }
-        /* Make bold text appear correctly */
+        /* Ensure our bold tags are actually bold */
         #resultText strong {
             font-weight: bold;
         }
-        /* --- MODIFICATIONS END HERE --- */
 
         .result-actions { justify-content: center; gap: 20px; margin-bottom: 0; }
         #copyBtn { background-color: var(--success-color); }
@@ -189,11 +186,9 @@
 
     <div class="main-container">
         <h1>Medivox HDL</h1>
-
         <div class="status-bar">
             <div id="connectionStatus">Déconnecté</div>
         </div>
-
         <div id="upload-section">
             <div id="dropzone" class="tab-content">
                 <div id="dropzone-icon">📁</div>
@@ -202,7 +197,6 @@
                 <button id="browseBtn">Parcourir</button>
                 <div id="fileLabel"></div>
             </div>
-    
             <div class="actions-bar">
                 <div>
                     <label for="templateSelect">Modèle :</label>
@@ -214,8 +208,6 @@
                 <div id="progressLabel"></div>
             </div>
         </div>
-
-
         <div id="resultSection" class="result-section">
             <div class="result-header">
                 <h2>✅ Rapport Prêt</h2>
@@ -236,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const browseBtn = document.getElementById('browseBtn');
     const fileLabel = document.getElementById('fileLabel');
-    const templateSelect = document.getElementById('templateSelect');
     const processBtn = document.getElementById('processBtn');
     const progressLabel = document.getElementById('progressLabel');
     const uploadSection = document.getElementById('upload-section');
@@ -247,28 +238,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('saveBtn');
 
     const PERMANENT_SERVER_ADDRESS = 'my-radiology-server.medivox.ca';
-
     let socket = null;
     let currentFile = null;
     let transcribedText = "";
-    let templates = {};
-
-    const defaultTemplates = {
-      "Standard": ""
-    };
-
-    function loadTemplates(loadedTemplates) {
-        const hasCustom = loadedTemplates && Object.keys(loadedTemplates).length > 0;
-        templates = hasCustom ? loadedTemplates : defaultTemplates;
-        templateSelect.innerHTML = '';
-        for (const name in templates) {
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            templateSelect.appendChild(option);
-        }
-    }
-    loadTemplates({});
 
     function updateUIForConnection(isConnected) {
         if (isConnected) {
@@ -311,30 +283,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectWebSocket() {
         if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
-
         const url = `wss://${PERMANENT_SERVER_ADDRESS}`;
         connectionStatus.textContent = 'Connexion...';
         connectionStatus.style.color = 'orange';
-
         socket = new WebSocket(url);
-
         socket.onopen = () => {
             console.log('Connecté au serveur');
             updateUIForConnection(true);
             showProgress("Connecté au serveur de transcription.");
             setTimeout(hideProgress, 3000);
         };
-
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             handleServerMessage(data);
         };
-
         socket.onerror = (error) => {
             console.error('WebSocket Error:', error);
             updateUIForConnection(false);
         };
-
         socket.onclose = () => {
             console.log('Déconnecté du serveur. Nouvelle tentative dans 5 secondes...');
             socket = null;
@@ -343,10 +309,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     
-    // --- NEW FUNCTION TO FORMAT TEXT ---
-    function formatServerText(text) {
-        // Replace **text** with <strong>text</strong> for bolding
-        return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // --- NEW & IMPROVED FUNCTION TO FORMAT TEXT ---
+    function formatTextAsHtml(text) {
+        if (!text) return "";
+
+        const lines = text.split('\n');
+
+        const formattedLines = lines.map(line => {
+            let trimmedLine = line.trim();
+
+            // Rule 1: Make lines in ALL CAPS bold (for headings)
+            // A simple check: if the line isn't empty and is the same when uppercased.
+            if (trimmedLine.length > 0 && trimmedLine === trimmedLine.toUpperCase()) {
+                return `<strong>${trimmedLine}</strong>`;
+            }
+
+            // Rule 2: Handle inline bolding with **text**
+            trimmedLine = trimmedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            return trimmedLine;
+        });
+
+        // Join lines with <br> to preserve all paragraph and list breaks.
+        return formattedLines.join('<br>');
     }
 
     function handleServerMessage(data) {
@@ -363,8 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'formatting_complete':
                 hideProgress();
-                // MODIFICATION: Use the new formatting function before setting innerHTML
-                resultText.innerHTML = formatServerText(text || "Erreur : la mise en forme a échoué.");
+                resultText.innerHTML = formatTextAsHtml(text); // Use the new formatting function
                 processBtn.disabled = false;
                 processBtn.textContent = "Transcrire et Formater";
                 toggleSections(true);
@@ -377,16 +361,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function requestFormatting() {
-        const templateName = templateSelect.value;
         const message = {
             action: "format_text",
             text: transcribedText
         };
-
-        if (templateName && templates[templateName] && templates[templateName].trim().length > 0) {
-            message.template = templates[templateName];
-            message.template_name = templateName;
-        }
         socket.send(JSON.stringify(message));
     }
 
@@ -400,14 +378,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProcessButtonState();
     }
 
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        dropzone.classList.add('dragover');
-    });
-    dropzone.addEventListener('dragleave', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        dropzone.classList.remove('dragover');
-    });
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); });
     dropzone.addEventListener('drop', (e) => {
         e.preventDefault(); e.stopPropagation();
         dropzone.classList.remove('dragover');
@@ -416,9 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     browseBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length) handleFileSelect(e.target.files[0]);
-    });
+    fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFileSelect(e.target.files[0]); });
 
     processBtn.addEventListener('click', () => {
         if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) return;
@@ -430,11 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = (e) => {
             const base64Audio = e.target.result.split(',')[1];
-            const message = {
-                action: "transcribe_audio",
-                audio: base64Audio
-            };
-            socket.send(JSON.stringify(message));
+            socket.send(JSON.stringify({ action: "transcribe_audio", audio: base64Audio }));
         };
         reader.onerror = (error) => {
             console.error("Erreur de lecture du fichier :", error);
@@ -452,13 +418,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     newSessionBtn.addEventListener('click', resetToStart);
-
     copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(resultText.innerText)
             .then(() => alert("Rapport copié dans le presse-papiers !"))
             .catch(() => alert("Échec de la copie du rapport."));
     });
-
     saveBtn.addEventListener('click', () => {
         const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement('a');
@@ -468,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
         URL.revokeObjectURL(link.href);
     });
 
-    // Auto-connection
     connectWebSocket();
 });
 </script>
