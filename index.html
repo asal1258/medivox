@@ -309,25 +309,26 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     
-    // --- NEW & IMPROVED FUNCTION TO FORMAT TEXT ---
+    // --- CORRECTED FORMATTING FUNCTION ---
     function formatTextAsHtml(text) {
         if (!text) return "";
 
         const lines = text.split('\n');
 
         const formattedLines = lines.map(line => {
-            let trimmedLine = line.trim();
+            let processedLine = line.trim();
 
-            // Rule 1: Make lines in ALL CAPS bold (for headings)
-            // A simple check: if the line isn't empty and is the same when uppercased.
-            if (trimmedLine.length > 0 && trimmedLine === trimmedLine.toUpperCase()) {
-                return `<strong>${trimmedLine}</strong>`;
+            // Rule 1: FIRST, always remove asterisks and convert to <strong> tags.
+            // This cleans the line for any subsequent rules.
+            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // Rule 2: If a line is in ALL CAPS and not already bolded, make it bold.
+            // This handles headings that don't come with asterisks.
+            if (!processedLine.startsWith('<strong>') && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
+                processedLine = `<strong>${processedLine}</strong>`;
             }
-
-            // Rule 2: Handle inline bolding with **text**
-            trimmedLine = trimmedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             
-            return trimmedLine;
+            return processedLine;
         });
 
         // Join lines with <br> to preserve all paragraph and list breaks.
@@ -348,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'formatting_complete':
                 hideProgress();
-                resultText.innerHTML = formatTextAsHtml(text); // Use the new formatting function
+                resultText.innerHTML = formatTextAsHtml(text); // Use the corrected formatting function
                 processBtn.disabled = false;
                 processBtn.textContent = "Transcrire et Formater";
                 toggleSections(true);
