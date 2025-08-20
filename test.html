@@ -260,6 +260,34 @@
             color: white;
             min-width: 50px;
             touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        #main-controls button:hover:not(:disabled), 
+        #edit-controls button:hover:not(:disabled) {
+            background: var(--primary-color);
+            transform: scale(1.05);
+            transition: all 0.2s ease;
+        }
+        
+        #main-controls button:active:not(:disabled), 
+        #edit-controls button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        
+        #main-controls button:disabled, 
+        #edit-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #deleteBtn {
+            background-color: var(--error-color);
+        }
+        
+        #deleteBtn:hover:not(:disabled) {
+            background-color: #ff6666;
         }
         
         #main-controls #recordBtn {
@@ -291,6 +319,8 @@
             background-color: var(--secondary-color);
             border-radius: 20px;
             padding: 4px;
+            user-select: none;
+            -webkit-user-select: none;
         }
         
         .edit-mode-toggle button {
@@ -301,11 +331,17 @@
             color: #ccc;
             cursor: pointer;
             touch-action: manipulation;
+            transition: all 0.2s ease;
+        }
+        
+        .edit-mode-toggle button:hover {
+            background-color: rgba(74, 158, 255, 0.2);
         }
         
         .edit-mode-toggle button.active {
             background-color: var(--primary-color);
             color: white;
+            pointer-events: none; /* Prevent clicking on already active button */
         }
 
         /* --- Common/Result Section --- */
@@ -610,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const playBtn = document.getElementById('playBtn');
     const rewindBtn = document.getElementById('rewindBtn');
     const forwardBtn = document.getElementById('forwardBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
     const insertModeBtn = document.getElementById('insertModeBtn');
     const overwriteModeBtn = document.getElementById('overwriteModeBtn');
     const timeline = document.getElementById('timeline');
@@ -1263,15 +1300,18 @@ document.addEventListener('DOMContentLoaded', () => {
         playBtn.disabled = isRecording || !hasRecording;
         rewindBtn.disabled = isRecording || !hasRecording;
         forwardBtn.disabled = isRecording || !hasRecording;
+        deleteBtn.disabled = isRecording || !hasRecording;
         insertModeBtn.disabled = isRecording;
         overwriteModeBtn.disabled = isRecording;
 
         if (isRecording) {
             recordBtn.textContent = '⏸️';
             recordBtn.classList.add('recording');
+            stopBtn.style.opacity = '1';
         } else {
             recordBtn.textContent = '🎤';
             recordBtn.classList.remove('recording');
+            stopBtn.style.opacity = stopBtn.disabled ? '0.5' : '1';
         }
     }
     
@@ -1453,18 +1493,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function stopRecording() {
         try {
-            if (mediaRecorder && (isRecording || isPaused)) {
+            if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
+                // Stop the media recorder
                 mediaRecorder.stop();
+                
+                // Stop all tracks
                 if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => {
+                        track.stop();
+                        console.log('Track stopped:', track.label);
+                    });
+                    stream = null;
                 }
+                
+                // Update state
                 isRecording = false;
                 isPaused = false;
+                
+                // Play stop sound
                 stopSound.play().catch(() => {});
+                
+                console.log('Recording stopped successfully');
+            } else {
+                console.log('No active recording to stop');
             }
         } catch (error) {
             handleError(ERROR_TYPES.AUDIO, 'Failed to stop recording', error);
         } finally {
+            // Always update UI regardless of errors
             updateRecorderUI();
         }
     }
@@ -1898,76 +1954,161 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupRecorderListeners() {
+        // Record button
         recordBtn.addEventListener('click', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             toggleRecording();
             clickSound.play().catch(() => {});
         });
         
+        // Stop button - with proper event handling
         stopBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            stopRecording();
+            e.stopPropagation();
+            if (!stopBtn.disabled) {
+                stopRecording();
+            }
         });
         
+        // Play button
         playBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            try {
-                if (wavesurfer) {
-                    wavesurfer.playPause();
-                    clickSound.play().catch(() => {});
+            e.stopPropagation();
+            if (!playBtn.disabled) {
+                try {
+                    if (wavesurfer) {
+                        wavesurfer.playPause();
+                        clickSound.play().catch(() => {});
+                    }
+                } catch (error) {
+                    handleError(ERROR_TYPES.AUDIO, 'Playback failed', error);
                 }
-            } catch (error) {
-                handleError(ERROR_TYPES.AUDIO, 'Playback failed', error);
             }
         });
         
+        // Rewind button
         rewindBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            try {
-                if (wavesurfer) {
-                    const currentTime = wavesurfer.getCurrentTime();
-                    const newTime = Math.max(0, currentTime - 3);
-                    wavesurfer.seekTo(newTime / wavesurfer.getDuration());
-                    updateProgressBar(newTime, wavesurfer.getDuration());
-                    clickSound.play().catch(() => {});
+            e.stopPropagation();
+            if (!rewindBtn.disabled) {
+                try {
+                    if (wavesurfer) {
+                        const currentTime = wavesurfer.getCurrentTime();
+                        const newTime = Math.max(0, currentTime - 3);
+                        wavesurfer.seekTo(newTime / wavesurfer.getDuration());
+                        updateProgressBar(newTime, wavesurfer.getDuration());
+                        clickSound.play().catch(() => {});
+                    }
+                } catch (error) {
+                    console.error('Rewind failed:', error);
                 }
-            } catch (error) {
-                console.error('Rewind failed:', error);
             }
         });
         
+        // Forward button
         forwardBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            try {
-                if (wavesurfer) {
-                    const currentTime = wavesurfer.getCurrentTime();
-                    const duration = wavesurfer.getDuration();
-                    const newTime = Math.min(duration, currentTime + 3);
-                    wavesurfer.seekTo(newTime / duration);
-                    updateProgressBar(newTime, duration);
-                    clickSound.play().catch(() => {});
+            e.stopPropagation();
+            if (!forwardBtn.disabled) {
+                try {
+                    if (wavesurfer) {
+                        const currentTime = wavesurfer.getCurrentTime();
+                        const duration = wavesurfer.getDuration();
+                        const newTime = Math.min(duration, currentTime + 3);
+                        wavesurfer.seekTo(newTime / duration);
+                        updateProgressBar(newTime, duration);
+                        clickSound.play().catch(() => {});
+                    }
+                } catch (error) {
+                    console.error('Forward failed:', error);
                 }
-            } catch (error) {
-                console.error('Forward failed:', error);
             }
         });
         
-        insertModeBtn.addEventListener('click', (e) => {
+        // Delete button
+        deleteBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            setEditMode('insert');
+            e.stopPropagation();
+            if (!deleteBtn.disabled) {
+                deleteRecording();
+            }
         });
         
+        // Insert mode button - fixed event handling
+        insertModeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!insertModeBtn.disabled) {
+                setEditMode('insert');
+            }
+        });
+        
+        // Overwrite mode button - fixed event handling
         overwriteModeBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            setEditMode('overwrite');
+            e.stopPropagation();
+            if (!overwriteModeBtn.disabled) {
+                setEditMode('overwrite');
+            }
         });
+        
+        // Also add touch events for mobile compatibility
+        [recordBtn, stopBtn, playBtn, rewindBtn, forwardBtn, deleteBtn, insertModeBtn, overwriteModeBtn].forEach(btn => {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                btn.click();
+            }, { passive: false });
+        });
+    }
+    
+    function deleteRecording() {
+        if (confirm("Êtes-vous sûr de vouloir effacer l'enregistrement?")) {
+            try {
+                // Stop any ongoing playback
+                if (wavesurfer && wavesurfer.isPlaying()) {
+                    wavesurfer.stop();
+                }
+                
+                // Clear the waveform
+                if (wavesurfer) {
+                    wavesurfer.empty();
+                }
+                
+                // Reset all state
+                originalBuffer = null;
+                currentFile = null;
+                audioChunks = [];
+                
+                // Reset UI
+                updateProgressBar(0, 0);
+                updateTimeline(0, 0);
+                updateRecorderUI();
+                updateProcessButtonState();
+                
+                // Show notification
+                showNotification("Enregistrement effacé");
+                
+            } catch (error) {
+                handleError(ERROR_TYPES.AUDIO, 'Failed to delete recording', error);
+            }
+        }
+    }
     }
 
     function setEditMode(mode) {
+        if (mode === editMode) return; // Don't do anything if already in this mode
+        
         editMode = mode;
         insertModeBtn.classList.toggle('active', mode === 'insert');
         overwriteModeBtn.classList.toggle('active', mode === 'overwrite');
+        
+        // Visual feedback
+        const message = mode === 'insert' ? "Mode: Insérer" : "Mode: Écraser";
+        showNotification(message);
         clickSound.play().catch(() => {});
+        
+        console.log('Edit mode changed to:', mode);
     }
 
     function setupActionListeners() {
