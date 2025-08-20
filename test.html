@@ -1,2386 +1,906 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Medivox HDL</title>
-    <script src="https://unpkg.com/wavesurfer.js@7"></script>
-    <style>
-        :root {
-            --bg-color: #1e1e1e;
-            --container-bg: #2d2d2d;
-            --text-color: #ffffff;
-            --primary-color: #4a9eff;
-            --secondary-color: #252525;
-            --tertiary-color: #353535;
-            --success-color: #4CAF50;
-            --error-color: #ff4444;
-            --warning-color: #ffa500;
-            --disabled-color: #666666;
-            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Arial', sans-serif;
-        }
-        
-        * {
-            -webkit-touch-callout: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        body {
-            font-family: var(--font-family);
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        
-        .main-container {
-            width: 100%;
-            max-width: 900px;
-            background-color: var(--bg-color);
-            padding: 20px;
-            border-radius: 8px;
-        }
-        
-        h1 {
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .status-bar {
-            background-color: var(--secondary-color);
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            text-align: right;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        #connectionStatus {
-            font-weight: bold;
-            color: var(--error-color);
-        }
-        
-        #connectionStatus::before {
-            content: '●';
-            margin-right: 8px;
-        }
-        
-        .error-message {
-            background-color: rgba(255, 68, 68, 0.1);
-            border: 1px solid var(--error-color);
-            color: var(--error-color);
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            display: none;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Medivox HDL</title>
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <style>
+    :root {
+      --bg-color: #1e1e1e;
+      --container-bg: #2d2d2d;
+      --text-color: #ffffff;
+      --primary-color: #4a9eff;
+      --secondary-color: #252525;
+      --tertiary-color: #353535;
+      --success-color: #4caf50;
+      --error-color: #ff4444;
+      --warning-color: #ffa500;
+      --disabled-color: #666666;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
 
-        /* --- Tabs --- */
-        .tabs {
-            display: flex;
-            margin-bottom: -2px;
-            z-index: 1;
-            position: relative;
-        }
-        
-        .tab-button {
-            padding: 10px 20px;
-            cursor: pointer;
-            background-color: var(--secondary-color);
-            border: 2px solid var(--tertiary-color);
-            border-bottom: none;
-            border-radius: 8px 8px 0 0;
-            margin-right: 5px;
-            color: #ccc;
-            touch-action: manipulation;
-        }
-        
-        .tab-button.active {
-            background-color: var(--container-bg);
-            border-color: var(--tertiary-color);
-            color: var(--primary-color);
-            font-weight: bold;
-        }
-        
-        .tab-content {
-            background-color: var(--container-bg);
-            padding: 40px 20px;
-            text-align: center;
-            border-radius: 8px;
-            border-top-left-radius: 0;
-            min-height: 200px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border: 2px solid var(--tertiary-color);
-            margin-bottom: 20px;
-        }
-        
-        .tab-pane { display: none; }
-        .tab-pane.active { display: block; }
+    * {
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-        /* --- Upload Section --- */
-        #dropzone {
-            width: 100%;
-            transition: border-color 0.3s;
-            padding: 0;
-            border: 2px dashed var(--tertiary-color);
-            border-radius: 8px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 200px;
-        }
-        
-        #dropzone.dragover {
-            border-color: var(--primary-color);
-            background-color: var(--secondary-color);
-        }
-        
-        #dropzone-icon { font-size: 48px; }
-        #dropzone-text { font-size: 16px; color: #ccc; margin: 10px 0; }
-        
-        #browseBtn {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 10px 20px;
-            font-size: 14px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            touch-action: manipulation;
-        }
-        
-        #fileLabel {
-            margin-top: 15px;
-            font-style: italic;
-            color: var(--primary-color);
-        }
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
 
-        /* --- Enhanced Voice Progress Bar --- */
-        .voice-progress-container {
-            width: 100%;
-            margin: 15px 0;
-            padding: 10px 0;
-            position: relative;
-        }
-        
-        .voice-progress-bar {
-            width: 100%;
-            height: 8px;
-            background-color: var(--tertiary-color);
-            border-radius: 4px;
-            position: relative;
-            cursor: pointer;
-            overflow: visible;
-        }
-        
-        .voice-progress-fill {
-            height: 100%;
-            background-color: var(--primary-color);
-            border-radius: 4px;
-            width: 0%;
-            transition: width 0.1s linear;
-            pointer-events: none;
-        }
-        
-        .voice-progress-handle {
-            width: 20px;
-            height: 20px;
-            background-color: var(--primary-color);
-            border: 3px solid white;
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            cursor: grab;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            z-index: 10;
-            left: 0%;
-            touch-action: none;
-        }
-        
-        .voice-progress-handle:active,
-        .voice-progress-handle.dragging {
-            cursor: grabbing;
-            transform: translate(-50%, -50%) scale(1.2);
-            box-shadow: 0 3px 6px rgba(0,0,0,0.5);
-        }
-        
-        .voice-time-labels {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 5px;
-            font-size: 12px;
-            color: var(--primary-color);
-            font-family: 'Courier New', monospace;
-        }
+    .main-container { width: 100%; max-width: 900px; background-color: var(--bg-color); padding: 20px; border-radius: 8px; }
+    h1 { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 20px; }
 
-        /* --- Recorder Section --- */
-        #recorder-tab-content {
-            gap: 15px;
-        }
-        
-        #waveform {
-            width: 100%;
-            height: 128px;
-        }
-        
-        #controls-timeline, #main-controls, #edit-controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            width: 100%;
-            flex-wrap: wrap;
-        }
-        
-        #main-controls button, #edit-controls button {
-            padding: 10px 15px;
-            border-radius: 50px;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            background: var(--tertiary-color);
-            color: white;
-            min-width: 50px;
-            touch-action: manipulation;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        
-        #main-controls button:hover:not(:disabled), 
-        #edit-controls button:hover:not(:disabled) {
-            background: var(--primary-color);
-            transform: scale(1.05);
-            transition: all 0.2s ease;
-        }
-        
-        #main-controls button:active:not(:disabled), 
-        #edit-controls button:active:not(:disabled) {
-            transform: scale(0.95);
-        }
-        
-        #main-controls button:disabled, 
-        #edit-controls button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        #deleteBtn {
-            background-color: var(--error-color);
-        }
-        
-        #deleteBtn:hover:not(:disabled) {
-            background-color: #ff6666;
-        }
-        
-        #main-controls #recordBtn {
-            background-color: var(--error-color);
-            width: 60px;
-            height: 60px;
-            font-size: 24px;
-        }
-        
-        #main-controls #recordBtn.recording {
-            background-color: #ff8c00;
-        }
-        
-        #main-controls #stopBtn {
-            background-color: var(--secondary-color);
-            width: 60px;
-            height: 60px;
-            font-size: 24px;
-        }
-        
-        #timeline {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 18px;
-            color: var(--primary-color);
-        }
-        
-        .edit-mode-toggle {
-            display: flex;
-            background-color: var(--secondary-color);
-            border-radius: 20px;
-            padding: 4px;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        .edit-mode-toggle button {
-            background: transparent;
-            border: none;
-            padding: 6px 15px;
-            border-radius: 16px;
-            color: #ccc;
-            cursor: pointer;
-            touch-action: manipulation;
-            transition: all 0.2s ease;
-        }
-        
-        .edit-mode-toggle button:hover {
-            background-color: rgba(74, 158, 255, 0.2);
-        }
-        
-        .edit-mode-toggle button.active {
-            background-color: var(--primary-color);
-            color: white;
-            pointer-events: none; /* Prevent clicking on already active button */
-        }
+    .status-bar { background-color: var(--secondary-color); padding: 10px; border-radius: 4px; margin-bottom: 20px; text-align: right; display: flex; justify-content: space-between; align-items: center; }
+    #connectionStatus { font-weight: bold; color: var(--error-color); }
+    #connectionStatus::before { content: "●"; margin-right: 8px; }
 
-        /* --- Common/Result Section --- */
-        .actions-bar, .result-header, .result-actions {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        
-        .actions-bar {
-            background-color: var(--bg-color);
-            justify-content: flex-start;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        label { margin-right: 10px; }
-        
-        select {
-            background-color: var(--tertiary-color);
-            color: var(--text-color);
-            border: 1px solid var(--tertiary-color);
-            padding: 8px 10px;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        
-        #processBtn {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 12px 30px;
-            font-size: 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            touch-action: manipulation;
-        }
-        
-        #processBtn:disabled {
-            background-color: var(--disabled-color);
-            cursor: not-allowed;
-        }
-        
-        #progressLabel {
-            margin-left: 20px;
-            font-size: 14px;
-            color: var(--primary-color);
-            display: none;
-        }
-        
-        .result-section { display: none; }
-        .result-header { justify-content: space-between; }
-        
-        .result-header h2 {
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--success-color);
-            margin: 0;
-        }
-        
-        #newSessionBtn, #copyBtn, #saveBtn {
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            color: white;
-            padding: 8px 15px;
-            touch-action: manipulation;
-        }
-        
-        #newSessionBtn { background-color: var(--container-bg); }
-        
-        #resultText {
-            width: 100%;
-            max-height: 70vh;
-            overflow-y: auto;
-            background-color: var(--container-bg);
-            color: var(--text-color);
-            border: 1px solid var(--primary-color);
-            border-radius: 4px;
-            padding: 15px;
-            box-sizing: border-box;
-            text-align: left;
-            font-family: Arial, sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        #resultText span[style*="font-weight:bold"] { font-weight: bold !important; }
-        
-        .result-actions { 
-            justify-content: center; 
-            gap: 20px; 
-            margin-bottom: 0;
-            flex-wrap: wrap;
-        }
-        
-        #copyBtn { background-color: var(--success-color); }
-        #saveBtn { background-color: #2196F3; }
+    .error-message { background-color: rgba(255, 68, 68, 0.1); border: 1px solid var(--error-color); color: var(--error-color); padding: 8px 12px; border-radius: 4px; font-size: 12px; display: none; }
 
-        /* Mobile Responsive */
-        @media (max-width: 600px) {
-            .main-container {
-                padding: 10px;
-            }
-            
-            h1 {
-                font-size: 20px;
-            }
-            
-            .tab-button {
-                padding: 8px 12px;
-                font-size: 14px;
-            }
-            
-            #main-controls button, #edit-controls button {
-                padding: 8px 12px;
-                font-size: 14px;
-            }
-            
-            #main-controls #recordBtn,
-            #main-controls #stopBtn {
-                width: 50px;
-                height: 50px;
-                font-size: 20px;
-            }
-            
-            #timeline {
-                font-size: 14px;
-            }
-            
-            .voice-progress-handle {
-                width: 24px;
-                height: 24px;
-            }
-        }
+    /* Tabs */
+    .tabs { display: flex; margin-bottom: -2px; z-index: 1; position: relative; }
+    .tab-button { padding: 10px 20px; cursor: pointer; background-color: var(--secondary-color); border: 2px solid var(--tertiary-color); border-bottom: none; border-radius: 8px 8px 0 0; margin-right: 5px; color: #ccc; touch-action: manipulation; }
+    .tab-button.active { background-color: var(--container-bg); border-color: var(--tertiary-color); color: var(--primary-color); font-weight: bold; }
+    .tab-content { background-color: var(--container-bg); padding: 40px 20px; text-align: center; border-radius: 8px; border-top-left-radius: 0; min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid var(--tertiary-color); margin-bottom: 20px; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
 
-        /* iOS-specific fixes */
-        @supports (-webkit-touch-callout: none) {
-            input[type="file"] {
-                font-size: 16px;
-            }
-            
-            button {
-                -webkit-appearance: none;
-                appearance: none;
-            }
-            
-            .voice-progress-bar {
-                -webkit-user-select: none;
-                user-select: none;
-            }
-        }
-    </style>
+    /* Upload */
+    #dropzone { width: 100%; transition: border-color 0.3s; padding: 0; border: 2px dashed var(--tertiary-color); border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 200px; }
+    #dropzone.dragover { border-color: var(--primary-color); background-color: var(--secondary-color); }
+    #dropzone-icon { font-size: 48px; }
+    #dropzone-text { font-size: 16px; color: #ccc; margin: 10px 0; }
+    #browseBtn { background-color: var(--primary-color); color: white; padding: 10px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
+    #fileLabel { margin-top: 15px; font-style: italic; color: var(--primary-color); }
+
+    /* Recorder */
+    #recorder-tab-content { gap: 15px; }
+    #waveform { width: 100%; height: 128px; }
+    #controls-timeline, #main-controls, #edit-controls { display: flex; justify-content: center; align-items: center; gap: 15px; width: 100%; flex-wrap: wrap; }
+    #main-controls button, #edit-controls button { padding: 10px 15px; border-radius: 50px; border: none; cursor: pointer; font-size: 16px; background: var(--tertiary-color); color: white; min-width: 50px; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+    #main-controls button:hover:not(:disabled), #edit-controls button:hover:not(:disabled) { background: var(--primary-color); transform: scale(1.05); transition: all 0.2s ease; }
+    #main-controls button:active:not(:disabled), #edit-controls button:active:not(:disabled) { transform: scale(0.95); }
+    #main-controls button:disabled, #edit-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #deleteBtn { background-color: var(--error-color); }
+    #deleteBtn:hover:not(:disabled) { background-color: #ff6666; }
+    #main-controls #recordBtn { background-color: var(--error-color); width: 60px; height: 60px; font-size: 24px; }
+    #main-controls #recordBtn.recording { background-color: #ff8c00; }
+    #main-controls #stopBtn { background-color: var(--secondary-color); width: 60px; height: 60px; font-size: 24px; }
+
+    #timeline { font-family: "Courier New", Courier, monospace; font-size: 18px; color: var(--primary-color); }
+
+    .edit-mode-toggle { display: flex; background-color: var(--secondary-color); border-radius: 20px; padding: 4px; user-select: none; -webkit-user-select: none; }
+    .edit-mode-toggle button { background: transparent; border: none; padding: 6px 15px; border-radius: 16px; color: #ccc; cursor: pointer; touch-action: manipulation; transition: all 0.2s ease; }
+    .edit-mode-toggle button:hover { background-color: rgba(74, 158, 255, 0.2); }
+    .edit-mode-toggle button.active { background-color: var(--primary-color); color: white; pointer-events: none; }
+
+    /* Voice progress */
+    .voice-progress-container { width: 100%; margin: 15px 0; padding: 10px 0; position: relative; }
+    .voice-progress-bar { width: 100%; height: 8px; background-color: var(--tertiary-color); border-radius: 4px; position: relative; cursor: pointer; overflow: visible; }
+    .voice-progress-fill { height: 100%; background-color: var(--primary-color); border-radius: 4px; width: 0%; transition: width 0.1s linear; pointer-events: none; }
+    .voice-progress-handle { width: 20px; height: 20px; background-color: var(--primary-color); border: 3px solid white; border-radius: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10; left: 0%; touch-action: none; }
+    .voice-progress-handle:active, .voice-progress-handle.dragging { cursor: grabbing; transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 3px 6px rgba(0,0,0,0.5); }
+    .voice-time-labels { display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px; color: var(--primary-color); font-family: "Courier New", monospace; }
+
+    /* Actions/Result */
+    .actions-bar, .result-header, .result-actions { display: flex; align-items: center; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+    .actions-bar { background-color: var(--bg-color); justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
+    label { margin-right: 10px; }
+    select { background-color: var(--tertiary-color); color: var(--text-color); border: 1px solid var(--tertiary-color); padding: 8px 10px; border-radius: 4px; font-size: 14px; }
+    #processBtn { background-color: var(--primary-color); color: white; padding: 12px 30px; font-size: 16px; border: none; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
+    #processBtn:disabled { background-color: var(--disabled-color); cursor: not-allowed; }
+    #progressLabel { margin-left: 20px; font-size: 14px; color: var(--primary-color); display: none; }
+
+    .result-section { display: none; }
+    .result-header { justify-content: space-between; }
+    .result-header h2 { font-size: 18px; font-weight: bold; color: var(--success-color); margin: 0; }
+    #newSessionBtn, #copyBtn, #saveBtn { border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; color: white; padding: 8px 15px; touch-action: manipulation; }
+    #newSessionBtn { background-color: var(--container-bg); }
+    #copyBtn { background-color: var(--success-color); }
+    #saveBtn { background-color: #2196f3; }
+
+    #resultText { width: 100%; max-height: 70vh; overflow-y: auto; background-color: var(--container-bg); color: var(--text-color); border: 1px solid var(--primary-color); border-radius: 4px; padding: 15px; box-sizing: border-box; text-align: left; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; -webkit-overflow-scrolling: touch; }
+    #resultText span[style*="font-weight:bold"] { font-weight: bold !important; }
+
+    /* Mobile */
+    @media (max-width: 600px) {
+      .main-container { padding: 10px; }
+      h1 { font-size: 20px; }
+      .tab-button { padding: 8px 12px; font-size: 14px; }
+      #main-controls button, #edit-controls button { padding: 8px 12px; font-size: 14px; }
+      #main-controls #recordBtn, #main-controls #stopBtn { width: 50px; height: 50px; font-size: 20px; }
+      #timeline { font-size: 14px; }
+      .voice-progress-handle { width: 24px; height: 24px; }
+    }
+
+    @supports (-webkit-touch-callout: none) {
+      input[type="file"] { font-size: 16px; }
+      button { -webkit-appearance: none; appearance: none; }
+      .voice-progress-bar { -webkit-user-select: none; user-select: none; }
+    }
+  </style>
 </head>
 <body>
-    <div class="main-container">
-        <h1>Medivox HDL</h1>
-        <div class="status-bar">
-            <div class="error-message" id="errorMessage"></div>
-            <div id="connectionStatus">Déconnecté</div>
-        </div>
-
-        <div id="processing-container">
-            <div class="tabs">
-                <button class="tab-button active" data-tab="upload-tab">Téléverser un fichier</button>
-                <button class="tab-button" data-tab="recorder-tab">Enregistrer un Audio</button>
-            </div>
-
-            <div id="upload-tab" class="tab-pane active">
-                <div class="tab-content">
-                    <div id="dropzone">
-                        <div id="dropzone-icon">📁</div>
-                        <div id="dropzone-text">Glissez-déposez votre fichier audio ici, ou cliquez sur Parcourir</div>
-                        <input type="file" id="fileInput" accept="audio/*" hidden>
-                        <button id="browseBtn">Parcourir</button>
-                        <div id="fileLabel"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="recorder-tab" class="tab-pane">
-                <div class="tab-content">
-                    <div id="waveform"></div>
-                    
-                    <!-- Enhanced Voice Progress Bar -->
-                    <div class="voice-progress-container">
-                        <div class="voice-progress-bar" id="voiceProgressBar">
-                            <div class="voice-progress-fill" id="voiceProgressFill"></div>
-                            <div class="voice-progress-handle" id="voiceProgressHandle"></div>
-                        </div>
-                        <div class="voice-time-labels">
-                            <span id="currentTimeLabel">00:00.0</span>
-                            <span id="totalTimeLabel">00:00.0</span>
-                        </div>
-                    </div>
-                    
-                    <div id="controls-timeline">
-                        <span id="timeline">00:00.0 / 00:00.0</span>
-                    </div>
-                    <div id="edit-controls">
-                        <button id="playBtn">▶️ Play</button>
-                        <button id="rewindBtn">⏪ 3s</button>
-                        <button id="forwardBtn">3s ⏩</button>
-                        <div class="edit-mode-toggle">
-                            <button id="insertModeBtn" class="active" title="Insert new audio at cursor position">Insérer</button>
-                            <button id="overwriteModeBtn" title="Record over existing audio from cursor position">Écraser</button>
-                        </div>
-                    </div>
-                    <div id="main-controls">
-                        <button id="recordBtn" title="Record/Pause">🎤</button>
-                        <button id="stopBtn" title="Stop Recording">⏹️</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="actions-bar">
-                <div>
-                    <label for="templateSelect">Modèle :</label>
-                    <select id="templateSelect">
-                        <option value="Standard">Standard</option>
-                    </select>
-                </div>
-                <button id="processBtn" disabled>Transcrire et Formater</button>
-                <div id="progressLabel"></div>
-            </div>
-        </div>
-
-        <div id="resultSection" class="result-section">
-            <div class="result-header">
-                <h2>✅ Rapport Prêt</h2>
-                <button id="newSessionBtn">Nouvelle Session</button>
-            </div>
-            <div id="resultText"></div>
-            <div class="result-actions">
-                <button id="copyBtn">Copier le Rapport</button>
-                <button id="saveBtn">Enregistrer dans un Fichier</button>
-            </div>
-        </div>
+  <div class="main-container">
+    <h1>Medivox HDL</h1>
+    <div class="status-bar">
+      <div class="error-message" id="errorMessage"></div>
+      <div id="connectionStatus">Déconnecté</div>
     </div>
-    
-    <audio id="click-sound" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAA" preload="auto"></audio>
-    <audio id="start-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAACA" preload="auto"></audio>
-    <audio id="stop-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAAAE" preload="auto"></audio>
 
-    <script>
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Constants & Configuration ---
-    const CONFIG = {
-        SERVER_ADDRESS: 'my-radiology-server.medivox.ca',
+    <div id="processing-container">
+      <div class="tabs">
+        <button class="tab-button active" data-tab="upload-tab">Téléverser un fichier</button>
+        <button class="tab-button" data-tab="recorder-tab">Enregistrer un Audio</button>
+      </div>
+
+      <div id="upload-tab" class="tab-pane active">
+        <div class="tab-content">
+          <div id="dropzone">
+            <div id="dropzone-icon">📁</div>
+            <div id="dropzone-text">Glissez-déposez votre fichier audio ici, ou cliquez sur Parcourir</div>
+            <input type="file" id="fileInput" accept="audio/*" hidden />
+            <button id="browseBtn">Parcourir</button>
+            <div id="fileLabel"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="recorder-tab" class="tab-pane">
+        <div class="tab-content" id="recorder-tab-content">
+          <div id="waveform"></div>
+
+          <div class="voice-progress-container">
+            <div class="voice-progress-bar" id="voiceProgressBar">
+              <div class="voice-progress-fill" id="voiceProgressFill"></div>
+              <div class="voice-progress-handle" id="voiceProgressHandle"></div>
+            </div>
+            <div class="voice-time-labels">
+              <span id="currentTimeLabel">00:00.0</span>
+              <span id="totalTimeLabel">00:00.0</span>
+            </div>
+          </div>
+
+          <div id="controls-timeline">
+            <span id="timeline">00:00.0 / 00:00.0</span>
+          </div>
+          <div id="edit-controls">
+            <button id="playBtn">▶️ Play</button>
+            <button id="rewindBtn">⏪ 3s</button>
+            <button id="forwardBtn">3s ⏩</button>
+            <button id="deleteBtn">🗑️ Effacer</button>
+            <div class="edit-mode-toggle">
+              <button id="insertModeBtn" class="active" title="Insérer du nouvel audio à la position du curseur">Insérer</button>
+              <button id="overwriteModeBtn" title="Écraser l'audio existant depuis la position du curseur">Écraser</button>
+            </div>
+          </div>
+          <div id="main-controls">
+            <button id="recordBtn" title="Enregistrer/Pause">🎤</button>
+            <button id="stopBtn" title="Arrêter">⏹️</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions-bar">
+        <div>
+          <label for="templateSelect">Modèle :</label>
+          <select id="templateSelect">
+            <option value="Standard">Standard</option>
+          </select>
+        </div>
+        <button id="processBtn" disabled>Transcrire et Formater</button>
+        <div id="progressLabel"></div>
+      </div>
+    </div>
+
+    <div id="resultSection" class="result-section">
+      <div class="result-header">
+        <h2>✅ Rapport Prêt</h2>
+        <button id="newSessionBtn">Nouvelle Session</button>
+      </div>
+      <div id="resultText"></div>
+      <div class="result-actions">
+        <button id="copyBtn">Copier le Rapport</button>
+        <button id="saveBtn">Enregistrer dans un Fichier</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="click-sound" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAA" preload="auto"></audio>
+  <audio id="start-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAACA" preload="auto"></audio>
+  <audio id="stop-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAAAE" preload="auto"></audio>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // --- Config ---
+      const CONFIG = {
+        SERVER_ADDRESS: "my-radiology-server.medivox.ca",
         RECONNECT_DELAY: 5000,
         MAX_RECONNECT_ATTEMPTS: 5,
-        AUDIO_CONSTRAINTS: {
-            sampleRate: 8000,
-            channels: 1,
-            bitDepth: 16
-        },
-        SUPPORTED_AUDIO_TYPES: ['audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg', 'audio/webm'],
-        MAX_FILE_SIZE: 50 * 1024 * 1024 // 50MB
-    };
+        AUDIO_CONSTRAINTS: { sampleRate: 8000, channels: 1, bitDepth: 16 },
+        SUPPORTED_AUDIO_TYPES: ["audio/wav", "audio/mp3", "audio/mpeg", "audio/m4a", "audio/x-m4a", "audio/ogg", "audio/webm"],
+        MAX_FILE_SIZE: 50 * 1024 * 1024,
+      };
 
-    // --- Error Types ---
-    const ERROR_TYPES = {
-        CONNECTION: 'connection',
-        AUDIO: 'audio',
-        FILE: 'file',
-        PROCESSING: 'processing',
-        PERMISSION: 'permission'
-    };
+      const ERROR_TYPES = { CONNECTION: "connection", AUDIO: "audio", FILE: "file", PROCESSING: "processing", PERMISSION: "permission" };
 
-    // --- Global State ---
-    let socket = null;
-    let currentFile = null;
-    let transcribedText = "";
-    let reconnectAttempts = 0;
-    
-    // --- UI Elements ---
-    const connectionStatus = document.getElementById('connectionStatus');
-    const errorMessage = document.getElementById('errorMessage');
-    const processBtn = document.getElementById('processBtn');
-    const progressLabel = document.getElementById('progressLabel');
-    const processingContainer = document.getElementById('processing-container');
-    const resultSection = document.getElementById('resultSection');
-    const resultText = document.getElementById('resultText');
-    const newSessionBtn = document.getElementById('newSessionBtn');
-    const copyBtn = document.getElementById('copyBtn');
-    const saveBtn = document.getElementById('saveBtn');
+      // --- Global state ---
+      let socket = null;
+      let currentFile = null;
+      let transcribedText = "";
+      let reconnectAttempts = 0;
 
-    // --- Upload Elements ---
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('fileInput');
-    const browseBtn = document.getElementById('browseBtn');
-    const fileLabel = document.getElementById('fileLabel');
+      // Recording/Playback state
+      let wavesurfer, mediaRecorder, stream;
+      let audioChunks = [];
+      let isRecording = false;
+      let isPaused = false;
+      let editMode = "insert";
+      let originalBuffer = null;
+      let isDraggingProgress = false;
+      let animationFrameId = null;
+      let recordStartMs = null; // start timestamp
+      let recordElapsedTimer = null; // interval id
 
-    // --- Recorder Elements ---
-    const recordBtn = document.getElementById('recordBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const playBtn = document.getElementById('playBtn');
-    const rewindBtn = document.getElementById('rewindBtn');
-    const forwardBtn = document.getElementById('forwardBtn');
-    const deleteBtn = document.getElementById('deleteBtn');
-    const insertModeBtn = document.getElementById('insertModeBtn');
-    const overwriteModeBtn = document.getElementById('overwriteModeBtn');
-    const timeline = document.getElementById('timeline');
+      // --- UI Elements ---
+      const connectionStatus = document.getElementById("connectionStatus");
+      const errorMessage = document.getElementById("errorMessage");
+      const processBtn = document.getElementById("processBtn");
+      const progressLabel = document.getElementById("progressLabel");
+      const processingContainer = document.getElementById("processing-container");
+      const resultSection = document.getElementById("resultSection");
+      const resultText = document.getElementById("resultText");
+      const newSessionBtn = document.getElementById("newSessionBtn");
+      const copyBtn = document.getElementById("copyBtn");
+      const saveBtn = document.getElementById("saveBtn");
 
-    // --- Voice Progress Bar Elements ---
-    const voiceProgressBar = document.getElementById('voiceProgressBar');
-    const voiceProgressFill = document.getElementById('voiceProgressFill');
-    const voiceProgressHandle = document.getElementById('voiceProgressHandle');
-    const currentTimeLabel = document.getElementById('currentTimeLabel');
-    const totalTimeLabel = document.getElementById('totalTimeLabel');
+      const dropzone = document.getElementById("dropzone");
+      const fileInput = document.getElementById("fileInput");
+      const browseBtn = document.getElementById("browseBtn");
+      const fileLabel = document.getElementById("fileLabel");
 
-    // --- Sound Elements ---
-    const clickSound = document.getElementById('click-sound');
-    const startSound = document.getElementById('start-sound');
-    const stopSound = document.getElementById('stop-sound');
-    
-    // --- Recorder State ---
-    let wavesurfer, mediaRecorder, stream;
-    let audioChunks = [];
-    let isRecording = false;
-    let isPaused = false;
-    let editMode = 'insert';
-    let originalBuffer = null;
-    let isDraggingProgress = false;
-    let animationFrameId = null;
-    
-    // --- Browser Detection ---
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isIOS = /ipad|iphone|ipod/.test(userAgent) && !window.MSStream;
-    const isIOSSafari = isIOS && /version/.test(userAgent) && !/(chrome|crios|fxios|opera|edgios)/i.test(userAgent);
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    const isAndroid = /android/i.test(userAgent);
-    const isMobile = isIOS || isAndroid || /mobile/i.test(userAgent);
-    
-    // --- Initialize Application ---
-    initializeApplication();
+      const recordBtn = document.getElementById("recordBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const playBtn = document.getElementById("playBtn");
+      const rewindBtn = document.getElementById("rewindBtn");
+      const forwardBtn = document.getElementById("forwardBtn");
+      const deleteBtn = document.getElementById("deleteBtn");
+      const insertModeBtn = document.getElementById("insertModeBtn");
+      const overwriteModeBtn = document.getElementById("overwriteModeBtn");
+      const timeline = document.getElementById("timeline");
 
-    function initializeApplication() {
+      const voiceProgressBar = document.getElementById("voiceProgressBar");
+      const voiceProgressFill = document.getElementById("voiceProgressFill");
+      const voiceProgressHandle = document.getElementById("voiceProgressHandle");
+      const currentTimeLabel = document.getElementById("currentTimeLabel");
+      const totalTimeLabel = document.getElementById("totalTimeLabel");
+
+      const clickSound = document.getElementById("click-sound");
+      const startSound = document.getElementById("start-sound");
+      const stopSound = document.getElementById("stop-sound");
+
+      // Browser detection
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isIOS = /ipad|iphone|ipod/.test(userAgent) && !window.MSStream;
+      const isIOSSafari = isIOS && /version/.test(userAgent) && !/(chrome|crios|fxios|opera|edgios)/i.test(userAgent);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const isAndroid = /android/i.test(userAgent);
+      const isMobile = isIOS || isAndroid || /mobile/i.test(userAgent);
+
+      // Init
+      initializeApplication();
+
+      function initializeApplication() {
         try {
-            if (isIOS || isSafari) {
-                initializeIOSCompatibility();
-            }
-            initializeWavesurfer();
-            connectWebSocket();
-            setupEventListeners();
-            updateRecorderUI();
-            initializeProgressBar();
+          if (isIOS || isSafari) initializeIOSCompatibility();
+          initializeWavesurfer();
+          connectWebSocket();
+          setupEventListeners();
+          updateRecorderUI();
+          initializeProgressBar();
         } catch (error) {
-            handleError(ERROR_TYPES.PROCESSING, 'Failed to initialize application', error);
+          handleError(ERROR_TYPES.PROCESSING, "Failed to initialize application", error);
         }
-    }
+      }
 
-    function initializeIOSCompatibility() {
-        // iOS-specific audio context initialization
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-            const audioContext = new AudioContext();
-            
-            // Resume audio context on first user interaction
-            const resumeAudioContext = () => {
-                if (audioContext.state === 'suspended') {
-                    audioContext.resume().then(() => {
-                        console.log('Audio context resumed');
-                    }).catch(err => {
-                        console.warn('Failed to resume audio context:', err);
-                    });
-                }
-            };
-            
-            // Add multiple event listeners for better compatibility
-            ['touchstart', 'touchend', 'mousedown', 'click'].forEach(eventType => {
-                document.addEventListener(eventType, resumeAudioContext, { once: true, passive: true });
-            });
+      function initializeIOSCompatibility() {
+        const AudioContextCls = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextCls) {
+          const audioContext = new AudioContextCls();
+          const resume = () => {
+            if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+          };
+          ["touchstart", "touchend", "mousedown", "click"].forEach((ev) => document.addEventListener(ev, resume, { once: true, passive: true }));
         }
-        
-        // Prevent zoom on double tap
+
         let lastTouchEnd = 0;
-        document.addEventListener('touchend', (event) => {
+        document.addEventListener(
+          "touchend",
+          (e) => {
             const now = Date.now();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
+            if (now - lastTouchEnd <= 300) e.preventDefault();
             lastTouchEnd = now;
-        }, false);
-        
-        // Show warning for non-HTTPS on iOS
-        if (isIOS && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-            showErrorMessage("HTTPS requis pour l'enregistrement audio sur iOS", 'warning');
+          },
+          { passive: false }
+        );
+
+        if (isIOS && window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+          showErrorMessage("HTTPS requis pour l'enregistrement audio sur iOS", "warning");
         }
-    }
+      }
 
-    // --- Voice Progress Bar Functions ---
-    function initializeProgressBar() {
-        // Mouse events for desktop
-        voiceProgressBar.addEventListener('mousedown', handleProgressBarClick);
-        voiceProgressHandle.addEventListener('mousedown', handleProgressDragStart);
-        document.addEventListener('mousemove', handleProgressDragMove);
-        document.addEventListener('mouseup', handleProgressDragEnd);
-        
-        // Touch events for mobile
-        voiceProgressBar.addEventListener('touchstart', handleProgressBarClick, { passive: false });
-        voiceProgressHandle.addEventListener('touchstart', handleProgressDragStart, { passive: false });
-        document.addEventListener('touchmove', handleProgressDragMove, { passive: false });
-        document.addEventListener('touchend', handleProgressDragEnd, { passive: false });
-        
-        // Prevent text selection while dragging
-        voiceProgressHandle.addEventListener('selectstart', (e) => e.preventDefault());
-    }
+      // Progress Bar logic
+      function initializeProgressBar() {
+        voiceProgressBar.addEventListener("mousedown", handleProgressBarClick);
+        voiceProgressHandle.addEventListener("mousedown", handleProgressDragStart);
+        document.addEventListener("mousemove", handleProgressDragMove);
+        document.addEventListener("mouseup", handleProgressDragEnd);
 
-    function handleProgressBarClick(e) {
+        voiceProgressBar.addEventListener("touchstart", handleProgressBarClick, { passive: false });
+        voiceProgressHandle.addEventListener("touchstart", handleProgressDragStart, { passive: false });
+        document.addEventListener("touchmove", handleProgressDragMove, { passive: false });
+        document.addEventListener("touchend", handleProgressDragEnd, { passive: false });
+
+        voiceProgressHandle.addEventListener("selectstart", (e) => e.preventDefault());
+      }
+
+      function getClientX(e) {
+        return e.type && e.type.includes("touch") ? (e.touches[0] ? e.touches[0].clientX : e.changedTouches[0].clientX) : e.clientX;
+      }
+
+      function handleProgressBarClick(e) {
         if (isDraggingProgress) return;
-        
         e.preventDefault();
         const rect = voiceProgressBar.getBoundingClientRect();
-        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-        const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-        
+        const clientX = getClientX(e);
+        const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
         if (wavesurfer && wavesurfer.getDuration() > 0) {
-            const newTime = (percentage / 100) * wavesurfer.getDuration();
-            wavesurfer.seekTo(percentage / 100);
-            updateProgressBar(newTime, wavesurfer.getDuration());
+          const newTime = (pct / 100) * wavesurfer.getDuration();
+          wavesurfer.seekTo(pct / 100);
+          updateProgressBar(newTime, wavesurfer.getDuration());
         }
-    }
-
-    function handleProgressDragStart(e) {
+      }
+      function handleProgressDragStart(e) {
         e.preventDefault();
         e.stopPropagation();
         isDraggingProgress = true;
-        voiceProgressHandle.classList.add('dragging');
-        
-        // Pause if playing during drag
-        if (wavesurfer && wavesurfer.isPlaying()) {
-            wavesurfer.pause();
-        }
-    }
-
-    function handleProgressDragMove(e) {
+        voiceProgressHandle.classList.add("dragging");
+        if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.pause();
+      }
+      function handleProgressDragMove(e) {
         if (!isDraggingProgress) return;
-        
         e.preventDefault();
         const rect = voiceProgressBar.getBoundingClientRect();
-        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-        const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-        
+        const clientX = getClientX(e);
+        const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
         if (wavesurfer && wavesurfer.getDuration() > 0) {
-            const newTime = (percentage / 100) * wavesurfer.getDuration();
-            updateProgressBar(newTime, wavesurfer.getDuration());
-            // Update waveform position without triggering seek event
-            wavesurfer.seekTo(percentage / 100);
+          const newTime = (pct / 100) * wavesurfer.getDuration();
+          updateProgressBar(newTime, wavesurfer.getDuration());
+          wavesurfer.seekTo(pct / 100);
         }
-    }
-
-    function handleProgressDragEnd(e) {
+      }
+      function handleProgressDragEnd(e) {
         if (!isDraggingProgress) return;
-        
         e.preventDefault();
         isDraggingProgress = false;
-        voiceProgressHandle.classList.remove('dragging');
-    }
+        voiceProgressHandle.classList.remove("dragging");
+      }
 
-    function updateProgressBar(currentTime, duration) {
-        if (!duration || isNaN(duration)) {
-            duration = 0;
-        }
-        if (!currentTime || isNaN(currentTime)) {
-            currentTime = 0;
-        }
-        
-        const percentage = duration > 0 ? (currentTime / duration) * 100 : 0;
-        
-        // Update progress fill and handle position
-        voiceProgressFill.style.width = `${percentage}%`;
-        voiceProgressHandle.style.left = `${percentage}%`;
-        
-        // Update time labels
+      function updateProgressBar(currentTime, duration) {
+        if (!duration || isNaN(duration)) duration = 0;
+        if (!currentTime || isNaN(currentTime)) currentTime = 0;
+        const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+        voiceProgressFill.style.width = `${pct}%`;
+        voiceProgressHandle.style.left = `${pct}%`;
         currentTimeLabel.textContent = formatTime(currentTime);
         totalTimeLabel.textContent = formatTime(duration);
-        
-        // Also update the main timeline
         updateTimeline(currentTime, duration);
-    }
+      }
 
-    function startProgressAnimation() {
-        const updateProgress = () => {
-            if (wavesurfer && wavesurfer.isPlaying()) {
-                updateProgressBar(wavesurfer.getCurrentTime(), wavesurfer.getDuration());
-                animationFrameId = requestAnimationFrame(updateProgress);
-            }
+      function startProgressAnimation() {
+        const tick = () => {
+          if (wavesurfer && wavesurfer.isPlaying()) {
+            updateProgressBar(wavesurfer.getCurrentTime(), wavesurfer.getDuration());
+            animationFrameId = requestAnimationFrame(tick);
+          }
         };
-        updateProgress();
-    }
+        tick();
+      }
+      function stopProgressAnimation() { if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } }
 
-    function stopProgressAnimation() {
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-            animationFrameId = null;
-        }
-    }
-
-    // --- Enhanced Error Handling System ---
-    function handleError(type, message, error = null) {
+      // --- Robust Errors ---
+      function handleError(type, message, error = null) {
         console.error(`[${type.toUpperCase()}] ${message}:`, error);
-        
-        let userMessage = message;
-        let severity = 'error';
-        
-        switch (type) {
-            case ERROR_TYPES.CONNECTION:
-                userMessage = getConnectionErrorMessage(error);
-                severity = reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS ? 'warning' : 'error';
-                break;
-                
-            case ERROR_TYPES.AUDIO:
-                userMessage = getAudioErrorMessage(error);
-                break;
-                
-            case ERROR_TYPES.FILE:
-                userMessage = getFileErrorMessage(error);
-                break;
-                
-            case ERROR_TYPES.PERMISSION:
-                userMessage = "Permissions requises non accordées. Veuillez autoriser l'accès au microphone.";
-                break;
-                
-            case ERROR_TYPES.PROCESSING:
-                userMessage = "Erreur de traitement. Veuillez réessayer.";
-                break;
-        }
-        
+        let userMessage = message; let severity = "error";
+        if (type === ERROR_TYPES.CONNECTION) { userMessage = getConnectionErrorMessage(error); severity = reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS ? "warning" : "error"; }
+        if (type === ERROR_TYPES.AUDIO) userMessage = getAudioErrorMessage(error);
+        if (type === ERROR_TYPES.FILE) userMessage = getFileErrorMessage(error);
+        if (type === ERROR_TYPES.PERMISSION) userMessage = "Permissions requises non accordées. Veuillez autoriser l'accès au microphone.";
+        if (type === ERROR_TYPES.PROCESSING) userMessage = userMessage || "Erreur de traitement. Veuillez réessayer.";
         showErrorMessage(userMessage, severity);
-        
-        // Auto-recovery for certain error types
-        if (type === ERROR_TYPES.CONNECTION && reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS) {
-            setTimeout(() => connectWebSocket(), CONFIG.RECONNECT_DELAY);
-        }
-    }
-
-    function getConnectionErrorMessage(error) {
+        if (type === ERROR_TYPES.CONNECTION && reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS) setTimeout(() => connectWebSocket(), CONFIG.RECONNECT_DELAY);
+      }
+      function getConnectionErrorMessage(error) {
         if (!error) return "Erreur de connexion inconnue";
-        
-        const errorMessages = {
-            1006: "Connexion fermée de manière inattendue",
-            1011: "Erreur serveur interne",
-            1012: "Service en cours de redémarrage"
-        };
-        
-        return errorMessages[error.code] || `Erreur de connexion: ${error.message || 'Code ' + error.code}`;
-    }
-
-    function getAudioErrorMessage(error) {
+        const map = { 1006: "Connexion fermée de manière inattendue", 1011: "Erreur serveur interne", 1012: "Service en cours de redémarrage" };
+        return map[error.code] || `Erreur de connexion: ${error.message || "Code " + error.code}`;
+      }
+      function getAudioErrorMessage(error) {
         if (!error) return "Erreur audio inconnue";
-        
-        const audioErrorMessages = {
-            'NotAllowedError': "Permission d'accès au microphone refusée",
-            'NotFoundError': "Aucun microphone détecté",
-            'NotReadableError': "Microphone en cours d'utilisation par une autre application",
-            'OverconstrainedError': "Paramètres audio non supportés",
-            'SecurityError': "Accès microphone bloqué (HTTPS requis)",
-            'AbortError': "Opération audio interrompue",
-            'InvalidStateError': "État audio invalide"
-        };
-        
-        return audioErrorMessages[error.name] || `Erreur audio: ${error.message}`;
-    }
-
-    function getFileErrorMessage(error) {
+        const map = { NotAllowedError: "Permission d'accès au microphone refusée", NotFoundError: "Aucun microphone détecté", NotReadableError: "Microphone en cours d'utilisation par une autre application", OverconstrainedError: "Paramètres audio non supportés", SecurityError: "Accès microphone bloqué (HTTPS requis)", AbortError: "Opération audio interrompue", InvalidStateError: "État audio invalide" };
+        return map[error.name] || `Erreur audio: ${error.message}`;
+      }
+      function getFileErrorMessage(error) {
         if (!error) return "Erreur de fichier inconnue";
-        
-        if (error.type === 'size') return `Fichier trop volumineux (max ${CONFIG.MAX_FILE_SIZE / (1024*1024)}MB)`;
-        if (error.type === 'format') return "Format de fichier non supporté";
-        
+        if (error.type === "size") return `Fichier trop volumineux (max ${CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB)`;
+        if (error.type === "format") return "Format de fichier non supporté";
         return `Erreur de fichier: ${error.message}`;
-    }
+      }
+      function showErrorMessage(message, severity = "error") {
+        errorMessage.textContent = message; errorMessage.className = `error-message ${severity}`; errorMessage.style.display = "block";
+        if (severity === "warning") setTimeout(hideErrorMessage, 10000);
+      }
+      function hideErrorMessage() { errorMessage.style.display = "none"; }
 
-    function showErrorMessage(message, severity = 'error') {
-        errorMessage.textContent = message;
-        errorMessage.className = `error-message ${severity}`;
-        errorMessage.style.display = 'block';
-        
-        // Auto-hide non-critical errors after 10 seconds
-        if (severity === 'warning') {
-            setTimeout(hideErrorMessage, 10000);
-        }
-    }
-
-    function hideErrorMessage() {
-        errorMessage.style.display = 'none';
-    }
-
-    // --- Enhanced WebSocket Logic ---
-    function connectWebSocket() {
-        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-            return;
-        }
-
+      // --- WebSocket ---
+      function connectWebSocket() {
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
         const url = `wss://${CONFIG.SERVER_ADDRESS}`;
-        connectionStatus.textContent = 'Connexion...';
-        connectionStatus.style.color = 'var(--warning-color)';
-        
-        try {
-            socket = new WebSocket(url);
-            setupWebSocketHandlers();
-        } catch (error) {
-            handleError(ERROR_TYPES.CONNECTION, 'Failed to create WebSocket connection', error);
-            reconnectAttempts++;
-        }
-    }
-
-    function setupWebSocketHandlers() {
-        socket.onopen = () => {
-            console.log('Connected to server');
-            reconnectAttempts = 0;
-            updateUIForConnection(true);
-            hideErrorMessage();
-            showProgress("Connecté au serveur de transcription.");
-            setTimeout(hideProgress, 3000);
-        };
-
+        connectionStatus.textContent = "Connexion..."; connectionStatus.style.color = "var(--warning-color)";
+        try { socket = new WebSocket(url); setupWebSocketHandlers(); } catch (e) { handleError(ERROR_TYPES.CONNECTION, "Failed to create WebSocket connection", e); reconnectAttempts++; }
+      }
+      function setupWebSocketHandlers() {
+        socket.onopen = () => { reconnectAttempts = 0; updateUIForConnection(true); hideErrorMessage(); showProgress("Connecté au serveur de transcription."); setTimeout(hideProgress, 3000); };
         socket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                handleServerMessage(data);
-            } catch (error) {
-                handleError(ERROR_TYPES.PROCESSING, 'Invalid server response', error);
-            }
+          try { const data = JSON.parse(event.data); handleServerMessage(data); } catch (e) { handleError(ERROR_TYPES.PROCESSING, "Invalid server response", e); }
         };
-
-        socket.onerror = (error) => {
-            handleError(ERROR_TYPES.CONNECTION, 'WebSocket error occurred', error);
-            updateUIForConnection(false);
-        };
-
-        socket.onclose = (event) => {
-            console.log('Disconnected from server');
-            socket = null;
-            updateUIForConnection(false);
-            
-            if (!event.wasClean) {
-                reconnectAttempts++;
-                handleError(ERROR_TYPES.CONNECTION, 'Connection lost', { code: event.code, message: event.reason });
-            }
-        };
-    }
-    
-    function handleServerMessage(data) {
+        socket.onerror = (err) => { handleError(ERROR_TYPES.CONNECTION, "WebSocket error occurred", err); updateUIForConnection(false); };
+        socket.onclose = (event) => { socket = null; updateUIForConnection(false); if (!event.wasClean) { reconnectAttempts++; handleError(ERROR_TYPES.CONNECTION, "Connection lost", { code: event.code, message: event.reason }); } };
+      }
+      function handleServerMessage(data) {
         const { action, message, text, performance, error: serverError } = data;
-        
         try {
-            switch (action) {
-                case 'progress':
-                    showProgress(message);
-                    break;
-                    
-                case 'transcription_complete':
-                    if (!text) {
-                        throw new Error('No transcription text received');
-                    }
-                    transcribedText = text;
-                    const speed = performance ? `(${performance.speed || 'N/A'})` : '';
-                    showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
-                    requestFormatting();
-                    break;
-                    
-                case 'formatting_complete':
-                    if (!text) {
-                        throw new Error('No formatted text received');
-                    }
-                    hideProgress();
-                    resultText.innerHTML = formatTextAsHtml(text);
-                    processBtn.disabled = false;
-                    processBtn.textContent = "Transcrire et Formater";
-                    toggleSections(true);
-                    break;
-                    
-                case 'error':
-                    throw new Error(message || serverError || 'Unknown server error');
-                    
-                default:
-                    console.warn('Unknown server action:', action);
-            }
-        } catch (error) {
-            handleError(ERROR_TYPES.PROCESSING, 'Server message processing failed', error);
-            resetUIafterProcessing();
+          switch (action) {
+            case "progress":
+              showProgress(message);
+              break;
+            case "transcription_complete":
+              if (!text) throw new Error("No transcription text received");
+              transcribedText = text;
+              const speed = performance ? `(${performance.speed || "N/A"})` : "";
+              showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
+              requestFormatting();
+              break;
+            case "formatting_complete":
+              if (!text) throw new Error("No formatted text received");
+              hideProgress();
+              resultText.innerHTML = formatTextAsHtml(text);
+              processBtn.disabled = false; processBtn.textContent = "Transcrire et Formater";
+              toggleSections(true);
+              break;
+            case "error":
+              throw new Error(message || serverError || "Unknown server error");
+            default:
+              console.warn("Unknown server action:", action);
+          }
+        } catch (e) {
+          handleError(ERROR_TYPES.PROCESSING, "Server message processing failed", e);
+          resetUIafterProcessing();
         }
-    }
-    
-    function requestFormatting() {
-        if (!socket || socket.readyState !== WebSocket.OPEN) {
-            throw new Error('WebSocket not connected');
-        }
-        
-        if (!transcribedText) {
-            throw new Error('No transcribed text to format');
-        }
-        
-        const message = {
-            action: "format_text",
-            text: transcribedText
-        };
-        
-        try {
-            socket.send(JSON.stringify(message));
-        } catch (error) {
-            handleError(ERROR_TYPES.CONNECTION, 'Failed to send formatting request', error);
-        }
-    }
-    
-    // --- UI State Management ---
-    function updateUIForConnection(isConnected) {
-        if (isConnected) {
-            connectionStatus.textContent = 'Connecté';
-            connectionStatus.style.color = 'var(--success-color)';
-        } else {
-            connectionStatus.textContent = 'Déconnecté';
-            connectionStatus.style.color = 'var(--error-color)';
-        }
-        updateProcessButtonState();
-    }
-    
-    function updateProcessButtonState() {
-        const isConnected = socket && socket.readyState === WebSocket.OPEN;
-        processBtn.disabled = !isConnected || !currentFile;
-    }
+      }
+      function requestFormatting() {
+        if (!socket || socket.readyState !== WebSocket.OPEN) throw new Error("WebSocket not connected");
+        if (!transcribedText) throw new Error("No transcribed text to format");
+        try { socket.send(JSON.stringify({ action: "format_text", text: transcribedText })); } catch (e) { handleError(ERROR_TYPES.CONNECTION, "Failed to send formatting request", e); }
+      }
 
-    function showProgress(message) {
-        progressLabel.textContent = message;
-        progressLabel.style.display = 'block';
-    }
+      // --- UI state ---
+      function updateUIForConnection(isConnected) { connectionStatus.textContent = isConnected ? "Connecté" : "Déconnecté"; connectionStatus.style.color = isConnected ? "var(--success-color)" : "var(--error-color)"; updateProcessButtonState(); }
+      function updateProcessButtonState() { const isConnected = socket && socket.readyState === WebSocket.OPEN; processBtn.disabled = !isConnected || !currentFile; }
+      function showProgress(message) { progressLabel.textContent = message; progressLabel.style.display = "block"; }
+      function hideProgress() { progressLabel.style.display = "none"; }
+      function toggleSections(showResult) { resultSection.style.display = showResult ? "block" : "none"; processingContainer.style.display = showResult ? "none" : "block"; }
+      function resetToStart() { toggleSections(false); currentFile = null; transcribedText = ""; fileLabel.textContent = ""; resultText.innerHTML = ""; fileInput.value = ""; resetRecorderState(); updateProcessButtonState(); }
+      function resetRecorderState() { if (wavesurfer) wavesurfer.empty(); originalBuffer = null; stopRecordingTimer(); updateProgressBar(0, 0); updateTimeline(0, 0); updateRecorderUI(); }
 
-    function hideProgress() {
-        progressLabel.style.display = 'none';
-    }
-
-    function toggleSections(showResult) {
-        resultSection.style.display = showResult ? 'block' : 'none';
-        processingContainer.style.display = showResult ? 'none' : 'block';
-    }
-
-    function resetToStart() {
-        toggleSections(false);
-        currentFile = null;
-        transcribedText = "";
-        fileLabel.textContent = "";
-        resultText.innerHTML = "";
-        fileInput.value = '';
-        
-        // Reset recorder state
-        resetRecorderState();
-        updateProcessButtonState();
-    }
-
-    function resetRecorderState() {
-        if (wavesurfer) {
-            wavesurfer.empty();
-        }
-        originalBuffer = null;
-        updateProgressBar(0, 0);
-        updateTimeline(0, 0);
-        updateRecorderUI();
-    }
-    
-    // --- Enhanced File Handling ---
-    function validateFile(file) {
-        if (!file) {
-            throw { type: 'format', message: 'No file provided' };
-        }
-        
-        if (file.size > CONFIG.MAX_FILE_SIZE) {
-            throw { type: 'size', message: `File size (${Math.round(file.size/(1024*1024))}MB) exceeds limit` };
-        }
-        
-        const isValidType = CONFIG.SUPPORTED_AUDIO_TYPES.some(type => 
-            file.type === type || file.name.toLowerCase().endsWith(type.split('/')[1])
-        );
-        
-        if (!isValidType) {
-            throw { type: 'format', message: `Unsupported file type: ${file.type}` };
-        }
-        
+      // --- Files ---
+      function validateFile(file) {
+        if (!file) throw { type: "format", message: "No file provided" };
+        if (file.size > CONFIG.MAX_FILE_SIZE) throw { type: "size", message: `File size (${Math.round(file.size / (1024 * 1024))}MB) exceeds limit` };
+        const name = (file.name || "").toLowerCase();
+        const ok = CONFIG.SUPPORTED_AUDIO_TYPES.some((type) => file.type === type) || [".wav", ".mp3", ".m4a", ".ogg", ".webm"].some((ext) => name.endsWith(ext));
+        if (!ok) throw { type: "format", message: `Unsupported file type: ${file.type || name}` };
         return true;
-    }
+      }
+      function handleFileSelect(file) { try { validateFile(file); currentFile = file; fileLabel.textContent = `Sélectionné : ${file.name}`; hideErrorMessage(); updateProcessButtonState(); } catch (e) { handleError(ERROR_TYPES.FILE, "File validation failed", e); currentFile = null; updateProcessButtonState(); } }
 
-    function handleFileSelect(file) {
+      function processAndSendAudio() {
+        if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) { handleError(ERROR_TYPES.PROCESSING, "Cannot process audio: missing file or connection"); return; }
+        processBtn.disabled = true; processBtn.textContent = "Traitement...";
         try {
-            validateFile(file);
-            currentFile = file;
-            fileLabel.textContent = `Sélectionné : ${file.name}`;
-            hideErrorMessage();
-            updateProcessButtonState();
-        } catch (error) {
-            handleError(ERROR_TYPES.FILE, 'File validation failed', error);
-            currentFile = null;
-            updateProcessButtonState();
-        }
-    }
-
-    function processAndSendAudio() {
-        if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) {
-            handleError(ERROR_TYPES.PROCESSING, 'Cannot process audio: missing file or connection');
-            return;
-        }
-
-        processBtn.disabled = true;
-        processBtn.textContent = 'Traitement...';
-
-        try {
-            // Check if we need to convert to WAV
-            if (currentFile.type !== 'audio/wav' && originalBuffer) {
-                showProgress("Conversion de l'enregistrement en WAV...");
-                audioBufferToWav(originalBuffer)
-                    .then(wavBlob => {
-                        currentFile = new File([wavBlob], "recording.wav", {type: "audio/wav"});
-                        sendFileToServer();
-                    })
-                    .catch(error => {
-                        handleError(ERROR_TYPES.AUDIO, "WAV conversion failed", error);
-                        resetUIafterProcessing();
-                    });
-            } else if (currentFile instanceof Blob && currentFile.size > 0) {
-                // If it's already a blob (from recording), send it directly
-                sendFileToServer();
-            } else if (currentFile instanceof File) {
-                // If it's a file from upload, send it
-                sendFileToServer();
-            } else {
-                handleError(ERROR_TYPES.PROCESSING, 'Invalid audio file');
-                resetUIafterProcessing();
-            }
-        } catch (error) {
-            handleError(ERROR_TYPES.PROCESSING, 'Audio processing failed', error);
-            resetUIafterProcessing();
-        }
-    }
-
-    function sendFileToServer() {
+          if (currentFile.type !== "audio/wav" && originalBuffer) {
+            showProgress("Conversion de l'enregistrement en WAV...");
+            audioBufferToWav(originalBuffer)
+              .then((wavBlob) => { currentFile = new File([wavBlob], "recording.wav", { type: "audio/wav" }); sendFileToServer(); })
+              .catch((e) => { handleError(ERROR_TYPES.AUDIO, "WAV conversion failed", e); resetUIafterProcessing(); });
+          } else if (currentFile instanceof Blob && currentFile.size > 0) {
+            sendFileToServer();
+          } else if (currentFile instanceof File) {
+            sendFileToServer();
+          } else {
+            handleError(ERROR_TYPES.PROCESSING, "Invalid audio file"); resetUIafterProcessing();
+          }
+        } catch (e) { handleError(ERROR_TYPES.PROCESSING, "Audio processing failed", e); resetUIafterProcessing(); }
+      }
+      function sendFileToServer() {
         showProgress("Lecture et envoi de l'audio au serveur...");
-        
         const reader = new FileReader();
-        
         reader.onload = (e) => {
-            try {
-                const base64Audio = e.target.result.split(',')[1];
-                if (!base64Audio) {
-                    throw new Error('Failed to encode file to base64');
-                }
-                
-                const message = {
-                    action: "transcribe_audio",
-                    audio: base64Audio,
-                    metadata: {
-                        filename: currentFile.name,
-                        size: currentFile.size,
-                        type: currentFile.type
-                    }
-                };
-                
-                socket.send(JSON.stringify(message));
-            } catch (error) {
-                handleError(ERROR_TYPES.PROCESSING, 'Failed to send audio data', error);
-                resetUIafterProcessing();
-            }
+          try {
+            const base64Audio = e.target.result.split(",")[1];
+            if (!base64Audio) throw new Error("Failed to encode file to base64");
+            const message = { action: "transcribe_audio", audio: base64Audio, metadata: { filename: currentFile.name || "recording.wav", size: currentFile.size, type: currentFile.type || "audio/wav" } };
+            socket.send(JSON.stringify(message));
+          } catch (err) { handleError(ERROR_TYPES.PROCESSING, "Failed to send audio data", err); resetUIafterProcessing(); }
         };
-        
-        reader.onerror = (error) => {
-            handleError(ERROR_TYPES.FILE, 'Failed to read audio file', error);
-            resetUIafterProcessing();
-        };
-        
+        reader.onerror = (err) => { handleError(ERROR_TYPES.FILE, "Failed to read audio file", err); resetUIafterProcessing(); };
         reader.readAsDataURL(currentFile);
-    }
-    
-    function resetUIafterProcessing() {
-        processBtn.disabled = false;
-        processBtn.textContent = 'Transcrire et Formater';
-        hideProgress();
-        updateProcessButtonState();
-    }
-    
-    // --- Enhanced Recorder Logic ---
-    function initializeWavesurfer() {
+      }
+      function resetUIafterProcessing() { processBtn.disabled = false; processBtn.textContent = "Transcrire et Formater"; hideProgress(); updateProcessButtonState(); }
+
+      // --- Wavesurfer ---
+      function initializeWavesurfer() {
         try {
-            wavesurfer = WaveSurfer.create({
-                container: '#waveform',
-                waveColor: 'rgb(200, 200, 200)',
-                progressColor: 'rgb(100, 100, 200)',
-                barWidth: 2,
-                barGap: 1,
-                barRadius: 2,
-                cursorWidth: 2,
-                cursorColor: '#4a9eff',
-                height: 128,
-                normalize: true,
-                responsive: true,
-                interact: true,
-                backend: isSafari || isIOS ? 'MediaElement' : 'WebAudio'
-            });
+          wavesurfer = WaveSurfer.create({
+            container: "#waveform",
+            waveColor: "rgb(200, 200, 200)",
+            progressColor: "rgb(100, 100, 200)",
+            barWidth: 2,
+            barGap: 1,
+            barRadius: 2,
+            cursorWidth: 2,
+            cursorColor: "#4a9eff",
+            height: 128,
+            normalize: true,
+            responsive: true,
+            interact: true,
+            backend: isSafari || isIOS ? "MediaElement" : "WebAudio",
+          });
 
-            wavesurfer.on('audioprocess', () => {
-                if (!isDraggingProgress) {
-                    updateProgressBar(wavesurfer.getCurrentTime(), wavesurfer.getDuration());
-                }
-            });
-            
-            wavesurfer.on('seek', () => {
-                if (!isDraggingProgress) {
-                    updateProgressBar(wavesurfer.getCurrentTime(), wavesurfer.getDuration());
-                }
-            });
-            
-            wavesurfer.on('play', () => {
-                playBtn.textContent = '⏸️ Pause';
-                startProgressAnimation();
-            });
-            
-            wavesurfer.on('pause', () => {
-                playBtn.textContent = '▶️ Play';
-                stopProgressAnimation();
-            });
-            
-            wavesurfer.on('finish', () => {
-                playBtn.textContent = '▶️ Play';
-                stopProgressAnimation();
-                updateProgressBar(wavesurfer.getDuration(), wavesurfer.getDuration());
-            });
-            
-            wavesurfer.on('ready', () => {
-                // Try to get the decoded data from the backend
-                if (wavesurfer.backend && wavesurfer.backend.buffer) {
-                    originalBuffer = wavesurfer.backend.buffer;
-                } else if (wavesurfer.backend && wavesurfer.backend.peaks) {
-                    // Fallback for MediaElement backend
-                    originalBuffer = null; // Will be handled differently
-                }
-                updateRecorderUI();
-                updateProgressBar(0, wavesurfer.getDuration());
-            });
-            
-            wavesurfer.on('error', (error) => {
-                handleError(ERROR_TYPES.AUDIO, 'Waveform error', error);
-            });
-        } catch (error) {
-            handleError(ERROR_TYPES.AUDIO, 'Failed to initialize waveform', error);
-        }
-    }
+          wavesurfer.on("audioprocess", () => { if (!isDraggingProgress) updateProgressBar(wavesurfer.getCurrentTime(), wavesurfer.getDuration()); });
+          wavesurfer.on("seek", () => { if (!isDraggingProgress) updateProgressBar(wavesurfer.getCurrentTime(), wavesurfer.getDuration()); });
+          wavesurfer.on("play", () => { playBtn.textContent = "⏸️ Pause"; startProgressAnimation(); });
+          wavesurfer.on("pause", () => { playBtn.textContent = "▶️ Play"; stopProgressAnimation(); });
+          wavesurfer.on("finish", () => { playBtn.textContent = "▶️ Play"; stopProgressAnimation(); updateProgressBar(wavesurfer.getDuration(), wavesurfer.getDuration()); });
+          wavesurfer.on("ready", () => {
+            if (wavesurfer.backend && wavesurfer.backend.buffer) originalBuffer = wavesurfer.backend.buffer; else originalBuffer = null;
+            updateRecorderUI(); updateProgressBar(0, wavesurfer.getDuration());
+          });
+          wavesurfer.on("error", (e) => handleError(ERROR_TYPES.AUDIO, "Waveform error", e));
+        } catch (e) { handleError(ERROR_TYPES.AUDIO, "Failed to initialize waveform", e); }
+      }
 
-    function updateRecorderUI() {
+      function updateRecorderUI() {
         const hasRecording = wavesurfer && wavesurfer.getDuration() > 0;
-        
         recordBtn.disabled = false;
         stopBtn.disabled = !isRecording && !isPaused;
         playBtn.disabled = isRecording || !hasRecording;
         rewindBtn.disabled = isRecording || !hasRecording;
         forwardBtn.disabled = isRecording || !hasRecording;
         deleteBtn.disabled = isRecording || !hasRecording;
-        insertModeBtn.disabled = isRecording;
-        overwriteModeBtn.disabled = isRecording;
+        insertModeBtn.disabled = isRecording; overwriteModeBtn.disabled = isRecording;
+        if (isRecording) { recordBtn.textContent = "⏸️"; recordBtn.classList.add("recording"); stopBtn.style.opacity = "1"; } else { recordBtn.textContent = "🎤"; recordBtn.classList.remove("recording"); stopBtn.style.opacity = stopBtn.disabled ? "0.5" : "1"; }
+      }
 
-        if (isRecording) {
-            recordBtn.textContent = '⏸️';
-            recordBtn.classList.add('recording');
-            stopBtn.style.opacity = '1';
-        } else {
-            recordBtn.textContent = '🎤';
-            recordBtn.classList.remove('recording');
-            stopBtn.style.opacity = stopBtn.disabled ? '0.5' : '1';
-        }
-    }
-    
-    async function toggleRecording() {
+      async function toggleRecording() {
+        try { if (isRecording) { pauseRecording(); } else if (isPaused) { resumeRecording(); } else { await startRecording(); } updateRecorderUI(); } catch (e) { handleError(ERROR_TYPES.AUDIO, "Recording toggle failed", e); resetRecordingState(); }
+      }
+      function pauseRecording() { if (mediaRecorder && mediaRecorder.state === "recording") { mediaRecorder.pause(); isPaused = true; isRecording = false; stopRecordingTimer(); } }
+      function resumeRecording() { if (mediaRecorder && mediaRecorder.state === "paused") { mediaRecorder.resume(); isPaused = false; isRecording = true; startRecordingTimer(); } }
+
+      async function startRecording() {
         try {
-            if (isRecording) {
-                pauseRecording();
-            } else if (isPaused) {
-                resumeRecording();
-            } else {
-                await startRecording();
-            }
-            updateRecorderUI();
-        } catch (error) {
-            handleError(ERROR_TYPES.AUDIO, 'Recording toggle failed', error);
-            resetRecordingState();
+          let audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+          if (isIOSSafari) audioConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+          else if (!isIOS) { audioConstraints.sampleRate = CONFIG.AUDIO_CONSTRAINTS.sampleRate; audioConstraints.channelCount = CONFIG.AUDIO_CONSTRAINTS.channels; }
+
+          stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints }).catch(async () => await navigator.mediaDevices.getUserMedia({ audio: true }));
+
+          const insertionTime = wavesurfer ? wavesurfer.getCurrentTime() : 0;
+          let recordingStream = stream;
+          if (originalBuffer && insertionTime > 0 && !isIOSSafari) {
+            try { recordingStream = await prepareEditingStream(stream, insertionTime); } catch (e) { console.warn("Edit stream preparation failed; using direct stream", e); }
+          }
+
+          mediaRecorder = createMediaRecorder(recordingStream);
+          audioChunks = [];
+          mediaRecorder.start(250); // smaller chunks = more responsive
+          isRecording = true; isPaused = false;
+          recordStartMs = Date.now();
+          startRecordingTimer();
+          startSound.play().catch(() => {});
+        } catch (e) {
+          if (["NotAllowedError", "PermissionDeniedError"].includes(e.name)) handleError(ERROR_TYPES.PERMISSION, "Microphone access denied", e);
+          else if (["NotFoundError", "DevicesNotFoundError"].includes(e.name)) handleError(ERROR_TYPES.AUDIO, "No microphone found", e);
+          else if (["NotReadableError", "TrackStartError"].includes(e.name)) handleError(ERROR_TYPES.AUDIO, "Microphone is already in use", e);
+          else handleError(ERROR_TYPES.AUDIO, "Failed to start recording", e);
+          resetRecordingState();
         }
-    }
+      }
 
-    function pauseRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.pause();
-            isPaused = true;
-            isRecording = false;
-        }
-    }
+      function startRecordingTimer() {
+        stopRecordingTimer();
+        recordElapsedTimer = setInterval(() => {
+          const elapsed = (Date.now() - recordStartMs) / 1000;
+          // During live recording, treat total = current (grows with time)
+          updateProgressBar(elapsed, elapsed);
+        }, 100);
+      }
+      function stopRecordingTimer() { if (recordElapsedTimer) { clearInterval(recordElapsedTimer); recordElapsedTimer = null; } }
 
-    function resumeRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'paused') {
-            mediaRecorder.resume();
-            isPaused = false;
-            isRecording = true;
-        }
-    }
-
-    async function startRecording() {
-        try {
-            // Browser-specific audio constraints
-            let audioConstraints = {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            };
-            
-            // Adjust constraints for different browsers
-            if (isIOSSafari) {
-                // Simplified constraints for iOS Safari
-                audioConstraints = {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false
-                };
-            } else if (!isIOS) {
-                // Desktop browsers can handle more specific constraints
-                audioConstraints.sampleRate = CONFIG.AUDIO_CONSTRAINTS.sampleRate;
-                audioConstraints.channelCount = CONFIG.AUDIO_CONSTRAINTS.channels;
-            }
-            
-            // Request microphone access
-            stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: audioConstraints
-            }).catch(async (error) => {
-                // Fallback to basic constraints if advanced ones fail
-                console.warn('Advanced constraints failed, using basic:', error);
-                return await navigator.mediaDevices.getUserMedia({ audio: true });
-            });
-            
-            const insertionTime = wavesurfer ? wavesurfer.getCurrentTime() : 0;
-            let recordingStream = stream;
-
-            // Handle audio editing if there's existing content (skip on iOS Safari for stability)
-            if (originalBuffer && insertionTime > 0 && !isIOSSafari) {
-                try {
-                    recordingStream = await prepareEditingStream(stream, insertionTime);
-                } catch (error) {
-                    console.warn('Edit stream preparation failed, using direct recording:', error);
-                }
-            }
-
-            // Initialize MediaRecorder with compatible options
-            mediaRecorder = createMediaRecorder(recordingStream);
-            audioChunks = [];
-            
-            mediaRecorder.start(1000); // Record in 1-second chunks for better compatibility
-            isRecording = true;
-            isPaused = false;
-            
-            // Play start sound
-            startSound.play().catch(() => {});
-            
-        } catch (error) {
-            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-                handleError(ERROR_TYPES.PERMISSION, 'Microphone access denied', error);
-            } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-                handleError(ERROR_TYPES.AUDIO, 'No microphone found', error);
-            } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-                handleError(ERROR_TYPES.AUDIO, 'Microphone is already in use', error);
-            } else {
-                handleError(ERROR_TYPES.AUDIO, 'Failed to start recording', error);
-            }
-            resetRecordingState();
-        }
-    }
-
-    async function prepareEditingStream(micStream, insertionTime) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioContext = new AudioContext();
-        
+      async function prepareEditingStream(micStream, insertionTime) {
+        const AudioContextCls = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContextCls();
         const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
-        
-        // Create a source for the existing audio part
-        const sourceNode = audioContext.createBufferSource();
-        sourceNode.buffer = preSlice;
+        const sourceNode = audioContext.createBufferSource(); sourceNode.buffer = preSlice;
+        const dest = audioContext.createMediaStreamDestination(); sourceNode.connect(dest); sourceNode.start();
+        const micSource = audioContext.createMediaStreamSource(micStream); micSource.connect(dest);
+        return dest.stream;
+      }
 
-        const mediaStreamDestination = audioContext.createMediaStreamDestination();
-        sourceNode.connect(mediaStreamDestination);
-        sourceNode.start();
+      function createMediaRecorder(stream) {
+        const mimeTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4", "audio/mpeg"];
+        let selected = ""; for (const t of mimeTypes) { if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) { selected = t; break; } }
+        const options = {}; if (selected) options.mimeType = selected; options.audioBitsPerSecond = isMobile ? 64000 : 128000;
+        const rec = new MediaRecorder(stream, options);
+        rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
+        rec.onstop = () => { processFinishedRecording(); };
+        rec.onerror = (ev) => { handleError(ERROR_TYPES.AUDIO, "MediaRecorder error", ev.error); resetRecordingState(); };
+        rec.onpause = () => {}; rec.onresume = () => {};
+        return rec;
+      }
 
-        // Merge with microphone stream
-        const micSource = audioContext.createMediaStreamSource(micStream);
-        micSource.connect(mediaStreamDestination);
-
-        return mediaStreamDestination.stream;
-    }
-
-    function createMediaRecorder(stream) {
-        // Determine the best MIME type for the current browser
-        const mimeTypes = [
-            'audio/webm;codecs=opus',
-            'audio/webm',
-            'audio/ogg;codecs=opus',
-            'audio/mp4',
-            'audio/mpeg'
-        ];
-        
-        let selectedMimeType = '';
-        for (const mimeType of mimeTypes) {
-            if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mimeType)) {
-                selectedMimeType = mimeType;
-                break;
-            }
-        }
-        
-        const options = {};
-        if (selectedMimeType) {
-            options.mimeType = selectedMimeType;
-        }
-        
-        // Adjust bitrate based on platform
-        options.audioBitsPerSecond = isMobile ? 64000 : 128000;
-        
-        const recorder = new MediaRecorder(stream, options);
-        
-        recorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-                audioChunks.push(event.data);
-            }
-        };
-        
-        recorder.onstop = () => {
-            processFinishedRecording();
-        };
-        
-        recorder.onerror = (event) => {
-            handleError(ERROR_TYPES.AUDIO, 'MediaRecorder error', event.error);
-            resetRecordingState();
-        };
-        
-        recorder.onpause = () => {
-            console.log('Recording paused');
-        };
-        
-        recorder.onresume = () => {
-            console.log('Recording resumed');
-        };
-
-        return recorder;
-    }
-
-    function stopRecording() {
+      function stopRecording() {
         try {
-            if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
-                // Stop the media recorder
-                mediaRecorder.stop();
-                
-                // Stop all tracks
-                if (stream) {
-                    stream.getTracks().forEach(track => {
-                        track.stop();
-                        console.log('Track stopped:', track.label);
-                    });
-                    stream = null;
-                }
-                
-                // Update state
-                isRecording = false;
-                isPaused = false;
-                
-                // Play stop sound
-                stopSound.play().catch(() => {});
-                
-                console.log('Recording stopped successfully');
-            } else {
-                console.log('No active recording to stop');
-            }
-        } catch (error) {
-            handleError(ERROR_TYPES.AUDIO, 'Failed to stop recording', error);
-        } finally {
-            // Always update UI regardless of errors
-            updateRecorderUI();
-        }
-    }
+          if (mediaRecorder && (mediaRecorder.state === "recording" || mediaRecorder.state === "paused")) {
+            mediaRecorder.stop();
+            if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+            isRecording = false; isPaused = false; stopRecordingTimer();
+            stopSound.play().catch(() => {});
+          }
+        } catch (e) { handleError(ERROR_TYPES.AUDIO, "Failed to stop recording", e); }
+        finally { updateRecorderUI(); }
+      }
 
-    function resetRecordingState() {
-        isRecording = false;
-        isPaused = false;
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-        mediaRecorder = null;
-        updateRecorderUI();
-    }
-    
-    async function processFinishedRecording() {
+      function resetRecordingState() { isRecording = false; isPaused = false; if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } mediaRecorder = null; stopRecordingTimer(); updateRecorderUI(); }
+
+      async function processFinishedRecording() {
         try {
-            if (audioChunks.length === 0) {
-                throw new Error('No audio data recorded');
-            }
+          if (audioChunks.length === 0) throw new Error("No audio data recorded");
+          const recordedBlob = new Blob(audioChunks, { type: mediaRecorder?.mimeType || "audio/webm" });
+          const AudioContextCls = window.AudioContext || window.webkitAudioContext;
+          const ctx = new AudioContextCls();
+          const arrayBuffer = await recordedBlob.arrayBuffer();
+          const newRecordingBuffer = await ctx.decodeAudioData(arrayBuffer);
+          const finalBuffer = await processAudioEditing(newRecordingBuffer);
+          const wavBlob = await audioBufferToBlob(finalBuffer);
+          if (wavesurfer) {
+            const url = URL.createObjectURL(wavBlob);
+            wavesurfer.load(url);
+            wavesurfer.once("ready", () => URL.revokeObjectURL(url));
+          }
+          originalBuffer = finalBuffer;
+          currentFile = new File([wavBlob], "recording.wav", { type: "audio/wav" });
+        } catch (e) { handleError(ERROR_TYPES.AUDIO, "Failed to process recording", e); }
+        finally { updateProcessButtonState(); resetRecordingState(); }
+      }
 
-            const recordedBlob = new Blob(audioChunks, { 
-                type: mediaRecorder?.mimeType || 'audio/webm' 
-            });
-            
-            // Convert blob to audio buffer
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const audioContext = new AudioContext();
-            
-            const arrayBuffer = await recordedBlob.arrayBuffer();
-            const newRecordingBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      async function audioBufferToBlob(buffer) { try { const wavBlob = await audioBufferToWav(buffer); return wavBlob; } catch (e) { console.warn("WAV conversion failed, using WebM fallback:", e); const AudioContextCls = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContextCls(); const dest = ctx.createMediaStreamDestination(); const src = ctx.createBufferSource(); src.buffer = buffer; src.connect(dest); const rec = new MediaRecorder(dest.stream); const chunks = []; return new Promise((resolve, reject) => { rec.ondataavailable = (ev) => chunks.push(ev.data); rec.onstop = () => resolve(new Blob(chunks, { type: "audio/webm" })); rec.onerror = reject; rec.start(); src.start(); src.onended = () => rec.stop(); }); } }
 
-            const finalBuffer = await processAudioEditing(newRecordingBuffer);
-            
-            // Convert the audio buffer back to blob for wavesurfer
-            const wavBlob = await audioBufferToBlob(finalBuffer);
-            
-            // Load the blob into wavesurfer
-            if (wavesurfer) {
-                const blobUrl = URL.createObjectURL(wavBlob);
-                wavesurfer.load(blobUrl);
-                
-                // Clean up the blob URL after loading
-                wavesurfer.once('ready', () => {
-                    URL.revokeObjectURL(blobUrl);
-                });
-            }
-            
-            // Store the buffer for WAV conversion
-            originalBuffer = finalBuffer;
-            currentFile = wavBlob; // Store the blob for sending
-            
-        } catch (error) {
-            handleError(ERROR_TYPES.AUDIO, 'Failed to process recording', error);
-        } finally {
-            updateProcessButtonState();
-            resetRecordingState();
-        }
-    }
-    
-    // Helper function to convert AudioBuffer to Blob
-    async function audioBufferToBlob(buffer) {
-        try {
-            // Convert to WAV format
-            const wavBlob = await audioBufferToWav(buffer);
-            return wavBlob;
-        } catch (error) {
-            // Fallback to WebM if WAV conversion fails
-            console.warn('WAV conversion failed, using WebM fallback:', error);
-            
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const audioContext = new AudioContext();
-            const mediaStreamDestination = audioContext.createMediaStreamDestination();
-            const bufferSource = audioContext.createBufferSource();
-            
-            bufferSource.buffer = buffer;
-            bufferSource.connect(mediaStreamDestination);
-            
-            const recorder = new MediaRecorder(mediaStreamDestination.stream);
-            const chunks = [];
-            
-            return new Promise((resolve, reject) => {
-                recorder.ondataavailable = e => chunks.push(e.data);
-                recorder.onstop = () => {
-                    const blob = new Blob(chunks, { type: 'audio/webm' });
-                    resolve(blob);
-                };
-                recorder.onerror = reject;
-                
-                recorder.start();
-                bufferSource.start();
-                bufferSource.onended = () => recorder.stop();
-            });
-        }
-    }
-
-    async function processAudioEditing(newRecordingBuffer) {
+      async function processAudioEditing(newRecordingBuffer) {
         const insertionTime = wavesurfer ? wavesurfer.getCurrentTime() : 0;
-        
-        if (!originalBuffer || insertionTime === 0) {
-            return newRecordingBuffer;
-        }
-
+        if (!originalBuffer || insertionTime === 0) return newRecordingBuffer;
         try {
-            const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
+          const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
+          if (editMode === "insert") {
+            const postSlice = sliceAudioBuffer(originalBuffer, insertionTime, originalBuffer.duration);
+            return concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
+          } else {
+            const newEnd = insertionTime + newRecordingBuffer.duration;
+            if (newEnd < originalBuffer.duration) { const postSlice = sliceAudioBuffer(originalBuffer, newEnd, originalBuffer.duration); return concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]); }
+            return concatAudioBuffers([preSlice, newRecordingBuffer]);
+          }
+        } catch (e) { console.warn("Audio editing failed, using new recording only:", e); return newRecordingBuffer; }
+      }
 
-            if (editMode === 'insert') {
-                const postSlice = sliceAudioBuffer(originalBuffer, insertionTime, originalBuffer.duration);
-                return concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
-            } else { // Overwrite mode
-                const newEndTime = insertionTime + newRecordingBuffer.duration;
-                if (newEndTime < originalBuffer.duration) {
-                    const postSlice = sliceAudioBuffer(originalBuffer, newEndTime, originalBuffer.duration);
-                    return concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
-                } else {
-                    return concatAudioBuffers([preSlice, newRecordingBuffer]);
-                }
-            }
-        } catch (error) {
-            console.warn('Audio editing failed, using new recording only:', error);
-            return newRecordingBuffer;
-        }
-    }
-    
-    // --- Audio Buffer Manipulation ---
-    function validateAudioBuffer(buffer) {
-        if (!buffer || !buffer.sampleRate || !buffer.numberOfChannels || buffer.length === 0) {
-            throw new Error('Invalid audio buffer');
-        }
-        return true;
-    }
+      // --- Buffers ---
+      function validateAudioBuffer(buffer) { if (!buffer || !buffer.sampleRate || !buffer.numberOfChannels || buffer.length === 0) throw new Error("Invalid audio buffer"); return true; }
+      function sliceAudioBuffer(buffer, start, end) {
+        validateAudioBuffer(buffer);
+        if (start < 0) start = 0; if (end > buffer.duration) end = buffer.duration; if (start >= end) { const AudioContextCls = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContextCls(); return ctx.createBuffer(buffer.numberOfChannels, 1, buffer.sampleRate); }
+        const AudioContextCls = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContextCls(); const rate = buffer.sampleRate; const s = Math.max(0, Math.round(rate * start)); const e = Math.min(buffer.length, Math.round(rate * end)); const frames = e - s; const out = ctx.createBuffer(buffer.numberOfChannels, frames, rate);
+        for (let ch = 0; ch < buffer.numberOfChannels; ch++) { const data = buffer.getChannelData(ch); out.copyToChannel(data.slice(s, e), ch); }
+        return out;
+      }
+      function concatAudioBuffers(buffers) {
+        if (!buffers || buffers.length === 0) throw new Error("No buffers to concatenate");
+        buffers.forEach((b, i) => validateAudioBuffer(b));
+        const first = buffers[0];
+        const AudioContextCls = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContextCls();
+        const rate = first.sampleRate; const chans = first.numberOfChannels; const total = buffers.reduce((a, b) => a + b.length, 0);
+        const out = ctx.createBuffer(chans, total, rate);
+        let offset = 0; for (const b of buffers) { for (let ch = 0; ch < Math.min(chans, b.numberOfChannels); ch++) { out.getChannelData(ch).set(b.getChannelData(ch), offset); } offset += b.length; }
+        return out;
+      }
+      function updateTimeline(current, total) { timeline.textContent = `${formatTime(current)} / ${formatTime(total)}`; }
+      function formatTime(time) { if (!time || isNaN(time)) time = 0; const m = Math.floor(time / 60); const s = Math.floor(time % 60); const d = Math.floor((time % 1) * 10); return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${d}`; }
 
-    function sliceAudioBuffer(buffer, start, end) {
-        try {
-            validateAudioBuffer(buffer);
-            
-            if (start < 0) start = 0;
-            if (end > buffer.duration) end = buffer.duration;
-            if (start >= end) throw new Error('Invalid slice parameters');
+      // --- WAV conversion (16-bit PCM, 8 kHz mono) ---
+      async function audioBufferToWav(buffer) {
+        validateAudioBuffer(buffer);
+        const targetSampleRate = CONFIG.AUDIO_CONSTRAINTS.sampleRate;
+        const targetChannels = CONFIG.AUDIO_CONSTRAINTS.channels;
+        let processed = buffer;
+        if (buffer.sampleRate !== targetSampleRate || buffer.numberOfChannels !== targetChannels) processed = await resampleAudioBuffer(buffer, targetSampleRate, targetChannels);
+        const pcm = processed.getChannelData(0);
+        const dataView = encodePCMToInt16(pcm);
+        const wavView = createWavFile(dataView, targetSampleRate, targetChannels);
+        return new Blob([wavView], { type: "audio/wav" });
+      }
+      async function resampleAudioBuffer(buffer, targetRate, targetChannels) {
+        const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        const offline = new OfflineCtx(targetChannels, Math.ceil(buffer.duration * targetRate), targetRate);
+        const src = offline.createBufferSource(); src.buffer = buffer; src.connect(offline.destination); src.start();
+        return await offline.startRendering();
+      }
+      function encodePCMToInt16(samples) {
+        const buf = new ArrayBuffer(samples.length * 2); const view = new DataView(buf);
+        for (let i = 0; i < samples.length; i++) { let s = Math.max(-1, Math.min(1, samples[i])); const v = s < 0 ? s * 0x8000 : s * 0x7fff; view.setInt16(i * 2, Math.round(v), true); }
+        return view;
+      }
+      function createWavFile(dataView, sampleRate, numChannels) {
+        const dataLen = dataView.byteLength; const buffer = new ArrayBuffer(44 + dataLen); const view = new DataView(buffer);
+        writeString(view, 0, "RIFF"); view.setUint32(4, 36 + dataLen, true); writeString(view, 8, "WAVE");
+        writeString(view, 12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2 * numChannels, true); view.setUint16(32, numChannels * 2, true); view.setUint16(34, 16, true);
+        writeString(view, 36, "data"); view.setUint32(40, dataLen, true);
+        new Uint8Array(buffer, 44).set(new Uint8Array(dataView.buffer));
+        return view;
+      }
+      function writeString(view, offset, str) { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); }
 
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const audioContext = new AudioContext();
-            const rate = buffer.sampleRate;
-            const startOffset = Math.max(0, Math.round(rate * start));
-            const endOffset = Math.min(buffer.length, Math.round(rate * end));
-            const frameCount = endOffset - startOffset;
-            
-            if (frameCount <= 0) {
-                return audioContext.createBuffer(buffer.numberOfChannels, 1, rate);
-            }
-
-            const newBuffer = audioContext.createBuffer(buffer.numberOfChannels, frameCount, rate);
-            
-            for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-                const channelData = buffer.getChannelData(channel);
-                const slicedData = channelData.slice(startOffset, endOffset);
-                newBuffer.copyToChannel(slicedData, channel);
-            }
-            
-            return newBuffer;
-        } catch (error) {
-            console.error('Audio buffer slicing failed:', error);
-            throw error;
-        }
-    }
-
-    function concatAudioBuffers(buffers) {
-        try {
-            if (!buffers || buffers.length === 0) {
-                throw new Error('No buffers to concatenate');
-            }
-
-            // Validate all buffers
-            buffers.forEach((buffer, index) => {
-                if (!validateAudioBuffer(buffer)) {
-                    throw new Error(`Invalid buffer at index ${index}`);
-                }
-            });
-
-            const firstBuffer = buffers[0];
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const audioContext = new AudioContext();
-            
-            // Check that all buffers have the same sample rate and channel count
-            const sampleRate = firstBuffer.sampleRate;
-            const numberOfChannels = firstBuffer.numberOfChannels;
-            
-            const totalLength = buffers.reduce((acc, buffer) => acc + buffer.length, 0);
-            const result = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
-
-            let offset = 0;
-            for (const buffer of buffers) {
-                for (let channel = 0; channel < Math.min(numberOfChannels, buffer.numberOfChannels); channel++) {
-                    const targetChannelData = result.getChannelData(channel);
-                    const sourceChannelData = buffer.getChannelData(channel);
-                    targetChannelData.set(sourceChannelData, offset);
-                }
-                offset += buffer.length;
-            }
-            
-            return result;
-        } catch (error) {
-            console.error('Audio buffer concatenation failed:', error);
-            throw error;
-        }
-    }
-
-    function updateTimeline(current, total) {
-        const formatTime = (time) => {
-            if (!time || isNaN(time)) time = 0;
-            const minutes = Math.floor(time / 60);
-            const seconds = Math.floor(time % 60);
-            const milliseconds = Math.floor((time % 1) * 10);
-            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
-        };
-        
-        timeline.textContent = `${formatTime(current)} / ${formatTime(total)}`;
-    }
-
-    function formatTime(time) {
-        if (!time || isNaN(time)) time = 0;
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        const milliseconds = Math.floor((time % 1) * 10);
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
-    }
-    
-    // --- WAV Conversion ---
-    async function audioBufferToWav(buffer) {
-        try {
-            validateAudioBuffer(buffer);
-            
-            const targetSampleRate = CONFIG.AUDIO_CONSTRAINTS.sampleRate;
-            const numChannels = CONFIG.AUDIO_CONSTRAINTS.channels;
-            
-            // Resample if necessary
-            let processedBuffer = buffer;
-            if (buffer.sampleRate !== targetSampleRate || buffer.numberOfChannels !== numChannels) {
-                processedBuffer = await resampleAudioBuffer(buffer, targetSampleRate, numChannels);
-            }
-            
-            // Get PCM data and encode to 16-bit
-            const pcmData = processedBuffer.getChannelData(0);
-            const dataView = encodePCMToInt16(pcmData);
-            
-            // Create WAV file
-            const wavBuffer = createWavFile(dataView, targetSampleRate, numChannels);
-            return new Blob([wavBuffer], { type: 'audio/wav' });
-            
-        } catch (error) {
-            handleError(ERROR_TYPES.AUDIO, 'WAV conversion failed', error);
-            throw error;
-        }
-    }
-
-    async function resampleAudioBuffer(buffer, targetSampleRate, targetChannels) {
-        try {
-            const OfflineAudioContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-            const offlineContext = new OfflineAudioContext(
-                targetChannels,
-                Math.ceil(buffer.duration * targetSampleRate),
-                targetSampleRate
-            );
-            
-            const bufferSource = offlineContext.createBufferSource();
-            bufferSource.buffer = buffer;
-            bufferSource.connect(offlineContext.destination);
-            bufferSource.start();
-            
-            return await offlineContext.startRendering();
-        } catch (error) {
-            console.error('Audio resampling failed:', error);
-            throw error;
-        }
-    }
-    
-    function encodePCMToInt16(samples) {
-        try {
-            if (!samples || samples.length === 0) {
-                throw new Error('No PCM samples to encode');
-            }
-
-            const buffer = new ArrayBuffer(samples.length * 2);
-            const view = new DataView(buffer);
-            
-            for (let i = 0; i < samples.length; i++) {
-                // Clamp sample to [-1, 1] range
-                let sample = Math.max(-1, Math.min(1, samples[i]));
-                
-                // Convert to 16-bit signed integer
-                const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-                view.setInt16(i * 2, Math.round(intSample), true);
-            }
-            
-            return view;
-        } catch (error) {
-            console.error('PCM encoding failed:', error);
-            throw error;
-        }
-    }
-    
-    function createWavFile(dataView, sampleRate, numChannels) {
-        try {
-            if (!dataView || !sampleRate || !numChannels) {
-                throw new Error('Invalid WAV parameters');
-            }
-
-            const dataLength = dataView.byteLength;
-            const buffer = new ArrayBuffer(44 + dataLength);
-            const view = new DataView(buffer);
-            
-            // WAV file header
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + dataLength, true);
-            writeString(view, 8, 'WAVE');
-            
-            // fmt chunk
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true); // chunk size
-            view.setUint16(20, 1, true);  // PCM format
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, sampleRate * 2 * numChannels, true); // byte rate
-            view.setUint16(32, numChannels * 2, true); // block align
-            view.setUint16(34, 16, true); // bits per sample
-            
-            // data chunk
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataLength, true);
-            
-            // Write PCM data
-            new Uint8Array(buffer, 44).set(new Uint8Array(dataView.buffer));
-            
-            return view;
-        } catch (error) {
-            console.error('WAV file creation failed:', error);
-            throw error;
-        }
-    }
-    
-    function writeString(view, offset, string) {
-        try {
-            if (!view || offset < 0 || !string) {
-                throw new Error('Invalid string write parameters');
-            }
-
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        } catch (error) {
-            console.error('String writing failed:', error);
-            throw error;
-        }
-    }
-
-    // --- Event Listeners Setup ---
-    function setupEventListeners() {
-        try {
-            setupTabListeners();
-            setupUploadListeners();
-            setupRecorderListeners();
-            setupActionListeners();
-            setupKeyboardShortcuts();
-        } catch (error) {
-            handleError(ERROR_TYPES.PROCESSING, 'Failed to setup event listeners', error);
-        }
-    }
-
-    function setupTabListeners() {
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', (e) => {
-                try {
-                    e.preventDefault();
-                    const tabId = button.dataset.tab;
-                    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-                    button.classList.add('active');
-                    document.getElementById(tabId).classList.add('active');
-                    clickSound.play().catch(() => {});
-                } catch (error) {
-                    console.error('Tab switching failed:', error);
-                }
-            });
-        });
-    }
-
-    function setupUploadListeners() {
-        // Drag and drop
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropzone.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
+      // --- Listeners ---
+      function setupEventListeners() { setupTabListeners(); setupUploadListeners(); setupRecorderListeners(); setupActionListeners(); setupKeyboardShortcuts(); }
+      function setupTabListeners() {
+        document.querySelectorAll(".tab-button").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
             e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropzone.addEventListener(eventName, () => {
-                dropzone.classList.add('dragover');
-            }, false);
-        });
-        
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropzone.addEventListener(eventName, () => {
-                dropzone.classList.remove('dragover');
-            }, false);
-        });
-        
-        dropzone.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            
-            if (files.length > 0) {
-                handleFileSelect(files[0]);
-            }
-        }, false);
-        
-        // File input
-        browseBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            fileInput.click();
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
-    }
-
-    function setupRecorderListeners() {
-        // Record button
-        recordBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleRecording();
+            const tabId = btn.dataset.tab;
+            document.querySelectorAll(".tab-button").forEach((b) => b.classList.remove("active"));
+            document.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(tabId).classList.add("active");
             clickSound.play().catch(() => {});
+          });
         });
-        
-        // Stop button - with proper event handling
-        stopBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!stopBtn.disabled) {
-                stopRecording();
-            }
-        });
-        
-        // Play button
-        playBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!playBtn.disabled) {
-                try {
-                    if (wavesurfer) {
-                        wavesurfer.playPause();
-                        clickSound.play().catch(() => {});
-                    }
-                } catch (error) {
-                    handleError(ERROR_TYPES.AUDIO, 'Playback failed', error);
-                }
-            }
-        });
-        
-        // Rewind button
-        rewindBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!rewindBtn.disabled) {
-                try {
-                    if (wavesurfer) {
-                        const currentTime = wavesurfer.getCurrentTime();
-                        const newTime = Math.max(0, currentTime - 3);
-                        wavesurfer.seekTo(newTime / wavesurfer.getDuration());
-                        updateProgressBar(newTime, wavesurfer.getDuration());
-                        clickSound.play().catch(() => {});
-                    }
-                } catch (error) {
-                    console.error('Rewind failed:', error);
-                }
-            }
-        });
-        
-        // Forward button
-        forwardBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!forwardBtn.disabled) {
-                try {
-                    if (wavesurfer) {
-                        const currentTime = wavesurfer.getCurrentTime();
-                        const duration = wavesurfer.getDuration();
-                        const newTime = Math.min(duration, currentTime + 3);
-                        wavesurfer.seekTo(newTime / duration);
-                        updateProgressBar(newTime, duration);
-                        clickSound.play().catch(() => {});
-                    }
-                } catch (error) {
-                    console.error('Forward failed:', error);
-                }
-            }
-        });
-        
-        // Delete button
-        deleteBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!deleteBtn.disabled) {
-                deleteRecording();
-            }
-        });
-        
-        // Insert mode button - fixed event handling
-        insertModeBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!insertModeBtn.disabled) {
-                setEditMode('insert');
-            }
-        });
-        
-        // Overwrite mode button - fixed event handling
-        overwriteModeBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!overwriteModeBtn.disabled) {
-                setEditMode('overwrite');
-            }
-        });
-        
-        // Also add touch events for mobile compatibility
-        [recordBtn, stopBtn, playBtn, rewindBtn, forwardBtn, deleteBtn, insertModeBtn, overwriteModeBtn].forEach(btn => {
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                btn.click();
-            }, { passive: false });
-        });
-    }
-    
-    function deleteRecording() {
+      }
+      function setupUploadListeners() {
+        ["dragenter", "dragover", "dragleave", "drop"].forEach((ev) => { dropzone.addEventListener(ev, preventDefaults, false); document.body.addEventListener(ev, preventDefaults, false); });
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        ["dragenter", "dragover"].forEach((ev) => dropzone.addEventListener(ev, () => dropzone.classList.add("dragover"), false));
+        ["dragleave", "drop"].forEach((ev) => dropzone.addEventListener(ev, () => dropzone.classList.remove("dragover"), false));
+        dropzone.addEventListener("drop", (e) => { const dt = e.dataTransfer; if (dt.files && dt.files.length > 0) handleFileSelect(dt.files[0]); }, false);
+        browseBtn.addEventListener("click", (e) => { e.preventDefault(); fileInput.click(); });
+        fileInput.addEventListener("change", (e) => { if (e.target.files.length > 0) handleFileSelect(e.target.files[0]); });
+      }
+      function setupRecorderListeners() {
+        recordBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleRecording(); clickSound.play().catch(() => {}); });
+        stopBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!stopBtn.disabled) stopRecording(); });
+        playBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!playBtn.disabled && wavesurfer) { try { wavesurfer.playPause(); clickSound.play().catch(() => {}); } catch (err) { handleError(ERROR_TYPES.AUDIO, "Playback failed", err); } } });
+        rewindBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!rewindBtn.disabled && wavesurfer) { try { const t = Math.max(0, wavesurfer.getCurrentTime() - 3); wavesurfer.seekTo(t / wavesurfer.getDuration()); updateProgressBar(t, wavesurfer.getDuration()); clickSound.play().catch(() => {}); } catch (err) {} } });
+        forwardBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!forwardBtn.disabled && wavesurfer) { try { const d = wavesurfer.getDuration(); const t = Math.min(d, wavesurfer.getCurrentTime() + 3); wavesurfer.seekTo(t / d); updateProgressBar(t, d); clickSound.play().catch(() => {}); } catch (err) {} } });
+        deleteBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!deleteBtn.disabled) deleteRecording(); });
+        insertModeBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!insertModeBtn.disabled) setEditMode("insert"); });
+        overwriteModeBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!overwriteModeBtn.disabled) setEditMode("overwrite"); });
+        [recordBtn, stopBtn, playBtn, rewindBtn, forwardBtn, deleteBtn, insertModeBtn, overwriteModeBtn].forEach((btn) => { btn.addEventListener("touchstart", (e) => { e.preventDefault(); btn.click(); }, { passive: false }); });
+      }
+      function deleteRecording() {
         if (confirm("Êtes-vous sûr de vouloir effacer l'enregistrement?")) {
-            try {
-                // Stop any ongoing playback
-                if (wavesurfer && wavesurfer.isPlaying()) {
-                    wavesurfer.stop();
-                }
-                
-                // Clear the waveform
-                if (wavesurfer) {
-                    wavesurfer.empty();
-                }
-                
-                // Reset all state
-                originalBuffer = null;
-                currentFile = null;
-                audioChunks = [];
-                
-                // Reset UI
-                updateProgressBar(0, 0);
-                updateTimeline(0, 0);
-                updateRecorderUI();
-                updateProcessButtonState();
-                
-                // Show notification
-                showNotification("Enregistrement effacé");
-                
-            } catch (error) {
-                handleError(ERROR_TYPES.AUDIO, 'Failed to delete recording', error);
-            }
+          try { if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.stop(); if (wavesurfer) wavesurfer.empty(); originalBuffer = null; currentFile = null; audioChunks = []; updateProgressBar(0, 0); updateTimeline(0, 0); updateRecorderUI(); updateProcessButtonState(); showNotification("Enregistrement effacé"); } catch (e) { handleError(ERROR_TYPES.AUDIO, "Failed to delete recording", e); }
         }
-    }
-    }
+      }
+      function setEditMode(mode) { if (mode === editMode) return; editMode = mode; insertModeBtn.classList.toggle("active", mode === "insert"); overwriteModeBtn.classList.toggle("active", mode === "overwrite"); showNotification(mode === "insert" ? "Mode: Insérer" : "Mode: Écraser"); clickSound.play().catch(() => {}); }
 
-    function setEditMode(mode) {
-        if (mode === editMode) return; // Don't do anything if already in this mode
-        
-        editMode = mode;
-        insertModeBtn.classList.toggle('active', mode === 'insert');
-        overwriteModeBtn.classList.toggle('active', mode === 'overwrite');
-        
-        // Visual feedback
-        const message = mode === 'insert' ? "Mode: Insérer" : "Mode: Écraser";
-        showNotification(message);
-        clickSound.play().catch(() => {});
-        
-        console.log('Edit mode changed to:', mode);
-    }
+      function setupActionListeners() {
+        processBtn.addEventListener("click", (e) => { e.preventDefault(); processAndSendAudio(); });
+        newSessionBtn.addEventListener("click", (e) => { e.preventDefault(); resetToStart(); });
+        copyBtn.addEventListener("click", (e) => { e.preventDefault(); copyFormattedText(); });
+        saveBtn.addEventListener("click", (e) => { e.preventDefault(); saveTextToFile(); });
+      }
+      function setupKeyboardShortcuts() {
+        document.addEventListener("keydown", (e) => {
+          if (["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+          if (e.code === "Space" && wavesurfer && wavesurfer.getDuration() > 0 && !isRecording) { e.preventDefault(); wavesurfer.playPause(); }
+          if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) { e.preventDefault(); toggleRecording(); }
+          if (e.code === "KeyS" && !e.metaKey && !e.ctrlKey) { e.preventDefault(); stopRecording(); }
+          if (e.code === "ArrowLeft" && wavesurfer && !isRecording) { e.preventDefault(); rewindBtn.click(); }
+          if (e.code === "ArrowRight" && wavesurfer && !isRecording) { e.preventDefault(); forwardBtn.click(); }
+        });
+      }
 
-    function setupActionListeners() {
-        processBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            processAndSendAudio();
-        });
-        
-        newSessionBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            resetToStart();
-        });
-        
-        copyBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            copyFormattedText();
-        });
-        
-        saveBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            saveTextToFile();
-        });
-    }
-
-    function setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            // Only handle shortcuts when not typing in input fields
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                return;
-            }
-            
-            // Space bar for play/pause
-            if (e.code === 'Space' && wavesurfer && wavesurfer.getDuration() > 0) {
-                e.preventDefault();
-                wavesurfer.playPause();
-            }
-            
-            // R for record
-            if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey) {
-                e.preventDefault();
-                toggleRecording();
-            }
-            
-            // S for stop
-            if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
-                e.preventDefault();
-                stopRecording();
-            }
-            
-            // Left arrow for rewind
-            if (e.code === 'ArrowLeft' && wavesurfer) {
-                e.preventDefault();
-                rewindBtn.click();
-            }
-            
-            // Right arrow for forward
-            if (e.code === 'ArrowRight' && wavesurfer) {
-                e.preventDefault();
-                forwardBtn.click();
-            }
-        });
-    }
-    
-    // --- Text Formatting & Output ---
-    function formatTextAsHtml(text) {
+      // --- Text formatting & output ---
+      function formatTextAsHtml(text) {
         if (!text) return "";
-        
         try {
-            const lines = text.split('\n');
-            const formattedLines = lines.map(line => {
-                let processedLine = line.trim();
-                const boldStyle = 'font-weight:bold;';
-                
-                // Replace **text** with bold spans
-                processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, `<span style="${boldStyle}">$1</span>`);
-                
-                // Make all-caps lines bold if not already formatted
-                if (!processedLine.includes(boldStyle) && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
-                    processedLine = `<span style="${boldStyle}">${processedLine}</span>`;
-                }
-                
-                return processedLine;
-            });
-            
-            return formattedLines.join('<br>');
-        } catch (error) {
-            console.error('Text formatting failed:', error);
-            return text; // Return original text if formatting fails
-        }
-    }
-    
-    function copyFormattedText() {
+          const lines = text.split("\n");
+          const formatted = lines.map((line) => {
+            let s = line.trim();
+            const bold = "font-weight:bold;";
+            s = s.replace(/\*\*(.*?)\*\*/g, `<span style="${bold}">$1</span>`);
+            if (!s.includes(bold) && s.length > 0 && s === s.toUpperCase()) s = `<span style="${bold}">${s}</span>`;
+            return s;
+          });
+          return formatted.join("<br>");
+        } catch (e) { return text; }
+      }
+      function copyFormattedText() {
         try {
-            const htmlContent = resultText.innerHTML;
-            const wordCompatibleHtml = htmlContent.replace(/<br\s*\/?>/gi, '</p><p>');
-            const styledHtml = `
-                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-                <head><meta charset="utf-8"><style>p { margin: 0; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; } span[style*="font-weight:bold"] { font-weight: bold !important; }</style></head>
-                <body><p>${wordCompatibleHtml}</p></body>
-                </html>`;
-            const plainText = resultText.innerText;
-            
-            // Modern clipboard API with fallback
-            if (navigator.clipboard && navigator.clipboard.write && !isIOS) {
-                const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
-                const textBlob = new Blob([plainText], { type: 'text/plain' });
-                const clipboardItem = new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob });
-                
-                navigator.clipboard.write([clipboardItem])
-                    .then(() => showNotification("Rapport copié avec formatage !"))
-                    .catch(err => {
-                        console.error("Modern clipboard failed:", err);
-                        fallbackCopy(plainText);
-                    });
-            } else {
-                // Use fallback for iOS and older browsers
-                fallbackCopy(plainText);
-            }
-        } catch (error) {
-            handleError(ERROR_TYPES.PROCESSING, 'Copy failed', error);
-        }
-    }
-
-    function fallbackCopy(text) {
+          const html = resultText.innerHTML;
+          const wordHtml = html.replace(/<br\s*\/?>(?=.)/gi, "</p><p>");
+          const styled = `\n<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>p{margin:0;font-family:Arial,sans-serif;font-size:11pt;line-height:1.5}span[style*='font-weight:bold']{font-weight:bold!important}</style></head><body><p>${wordHtml}</p></body></html>`;
+          const plain = resultText.innerText;
+          if (navigator.clipboard && navigator.clipboard.write && !isIOS) {
+            const htmlBlob = new Blob([styled], { type: "text/html" });
+            const textBlob = new Blob([plain], { type: "text/plain" });
+            const item = new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob });
+            navigator.clipboard.write([item]).then(() => showNotification("Rapport copié avec formatage !")).catch(() => fallbackCopy(plain));
+          } else fallbackCopy(plain);
+        } catch (e) { handleError(ERROR_TYPES.PROCESSING, "Copy failed", e); }
+      }
+      function fallbackCopy(text) {
         try {
-            // Create temporary textarea for copying
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            textarea.style.left = '-9999px';
-            document.body.appendChild(textarea);
-            
-            // Select and copy
-            textarea.select();
-            textarea.setSelectionRange(0, text.length);
-            
-            const success = document.execCommand('copy');
-            document.body.removeChild(textarea);
-            
-            if (success) {
-                showNotification("Rapport copié !");
-            } else {
-                // Final fallback using clipboard API
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text)
-                        .then(() => showNotification("Rapport copié !"))
-                        .catch(() => showNotification("Échec de la copie", 'error'));
-                } else {
-                    showNotification("Échec de la copie", 'error');
-                }
-            }
-        } catch (error) {
-            console.error('Fallback copy failed:', error);
-            showNotification("Échec de la copie", 'error');
-        }
-    }
-
-    function showNotification(message, type = 'success') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            background-color: ${type === 'success' ? 'var(--success-color)' : 'var(--error-color)'};
-            color: white;
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            z-index: 1000;
-            animation: slideIn 0.3s ease-out;
-        `;
-        
-        // Add animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from {
-                    transform: translateX(100%);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-        
-        document.body.appendChild(notification);
-        
-        // Remove after 3 seconds
-        setTimeout(() => {
-            notification.style.animation = 'slideIn 0.3s ease-out reverse';
-            setTimeout(() => {
-                document.body.removeChild(notification);
-                document.head.removeChild(style);
-            }, 300);
-        }, 3000);
-    }
-    
-    function saveTextToFile() {
+          const ta = document.createElement("textarea");
+          ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; ta.style.left = "-9999px"; document.body.appendChild(ta);
+          ta.select(); ta.setSelectionRange(0, text.length);
+          const ok = document.execCommand("copy"); document.body.removeChild(ta);
+          if (ok) showNotification("Rapport copié !"); else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => showNotification("Rapport copié !")).catch(() => showNotification("Échec de la copie", "error")); else showNotification("Échec de la copie", "error");
+        } catch (e) { showNotification("Échec de la copie", "error"); }
+      }
+      function showNotification(message, type = "success") {
+        const n = document.createElement("div");
+        n.textContent = message;
+        n.style.cssText = `position:fixed;top:20px;right:20px;padding:12px 20px;background-color:${type === "success" ? "var(--success-color)" : "var(--error-color)"};color:white;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:1000;animation:slideIn .3s ease-out;`;
+        const style = document.createElement("style"); style.textContent = `@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`; document.head.appendChild(style);
+        document.body.appendChild(n);
+        setTimeout(() => { n.style.animation = "slideIn .3s ease-out reverse"; setTimeout(() => { document.body.removeChild(n); document.head.removeChild(style); }, 300); }, 3000);
+      }
+      function saveTextToFile() {
         try {
-            const text = resultText.innerText;
-            if (!text) {
-                showNotification("Aucun texte à sauvegarder", 'error');
-                return;
-            }
+          const text = resultText.innerText; if (!text) { showNotification("Aucun texte à sauvegarder", "error"); return; }
+          const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+          const filename = `rapport_medivox_${ts}.txt`;
+          const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+          if (window.navigator && window.navigator.msSaveOrOpenBlob) window.navigator.msSaveOrOpenBlob(blob, filename);
+          else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.style.display = "none"; document.body.appendChild(a); a.click(); setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100); }
+          showNotification("Fichier sauvegardé !");
+        } catch (e) { handleError(ERROR_TYPES.PROCESSING, "File save failed", e); }
+      }
 
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-            const filename = `rapport_medivox_${timestamp}.txt`;
-            
-            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-            
-            // Modern download approach
-            if (window.navigator && window.navigator.msSaveOrOpenBlob) {
-                // IE/Edge legacy
-                window.navigator.msSaveOrOpenBlob(blob, filename);
-            } else {
-                // Modern browsers
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = filename;
-                link.style.display = 'none';
-                
-                document.body.appendChild(link);
-                link.click();
-                
-                // Clean up
-                setTimeout(() => {
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(link.href);
-                }, 100);
-            }
-            
-            showNotification("Fichier sauvegardé !");
-        } catch (error) {
-            handleError(ERROR_TYPES.PROCESSING, 'File save failed', error);
-        }
-    }
-
-    // --- Visibility API for performance ---
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            // Pause non-critical operations when page is hidden
-            stopProgressAnimation();
-        } else {
-            // Resume operations when page is visible
-            if (wavesurfer && wavesurfer.isPlaying()) {
-                startProgressAnimation();
-            }
-        }
+      document.addEventListener("visibilitychange", () => { if (document.hidden) stopProgressAnimation(); else if (wavesurfer && wavesurfer.isPlaying()) startProgressAnimation(); });
+      window.addEventListener("beforeunload", () => { if (socket) socket.close(); if (stream) stream.getTracks().forEach((t) => t.stop()); if (wavesurfer) wavesurfer.destroy(); stopProgressAnimation(); stopRecordingTimer(); });
     });
-
-    // --- Cleanup on page unload ---
-    window.addEventListener('beforeunload', () => {
-        // Clean up resources
-        if (socket) {
-            socket.close();
-        }
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
-        if (wavesurfer) {
-            wavesurfer.destroy();
-        }
-        stopProgressAnimation();
-    });
-});
-</script>
-
+  </script>
 </body>
 </html>
