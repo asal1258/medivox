@@ -444,17 +444,54 @@ document.addEventListener('DOMContentLoaded', () => {
     let editMode = 'insert';
     let originalBuffer = null;
     
+    // --- iOS Detection and Compatibility ---
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isIOSSafari = isIOS && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS/.test(navigator.userAgent);
+    
     // --- Initialize Application ---
     initializeApplication();
 
     function initializeApplication() {
         try {
+            if (isIOS) {
+                initializeIOSCompatibility();
+            }
             initializeWavesurfer();
             connectWebSocket();
             setupEventListeners();
             updateRecorderUI();
         } catch (error) {
             handleError(ERROR_TYPES.PROCESSING, 'Failed to initialize application', error);
+        }
+    }
+
+    function initializeIOSCompatibility() {
+        // iOS-specific audio context initialization
+        if (isIOS && window.AudioContext) {
+            // Create a dummy audio context to enable Web Audio API on iOS
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Add click handler to enable audio context on first user interaction
+            const enableAudioContext = () => {
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        console.log('iOS Audio context enabled');
+                    }).catch(err => {
+                        console.warn('Failed to enable iOS audio context:', err);
+                    });
+                }
+                // Remove listener after first activation
+                document.removeEventListener('touchstart', enableAudioContext);
+                document.removeEventListener('click', enableAudioContext);
+            };
+            
+            document.addEventListener('touchstart', enableAudioContext, { once: true });
+            document.addEventListener('click', enableAudioContext, { once: true });
+        }
+        
+        // Show iOS-specific warnings if needed
+        if (isIOS && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+            showErrorMessage("HTTPS requis pour l'enregistrement audio sur iPhone/iPad", 'error');
         }
     }
 
@@ -912,25 +949,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function startRecording() {
         try {
+            // iOS-specific constraints
+            const audioConstraints = {
+                sampleRate: CONFIG.AUDIO_CONSTRAINTS.sampleRate,
+                channelCount: CONFIG.AUDIO_CONSTRAINTS.channels,
+                echoCancellation: true,
+                noiseSuppression: true
+            };
+            
+            // iOS Safari has stricter requirements
+            if (isIOSSafari) {
+                // Simplified constraints for iOS Safari
+                delete audioConstraints.sampleRate; // Let iOS choose optimal sample rate
+                audioConstraints.autoGainControl = false; // Disable AGC which can cause issues
+            }
+            
             // Request microphone access
             stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    sampleRate: CONFIG.AUDIO_CONSTRAINTS.sampleRate,
-                    channelCount: CONFIG.AUDIO_CONSTRAINTS.channels,
-                    echoCancellation: true,
-                    noiseSuppression: true
-                }
+                audio: audioConstraints
             });
             
             const insertionTime = wavesurfer.getCurrentTime();
             let recordingStream = stream;
 
             // Handle audio editing if there's existing content
-            if (originalBuffer && insertionTime > 0) {
+            // Simplified for iOS to avoid complex Web Audio operations
+            if (originalBuffer && insertionTime > 0 && !isIOSSafari) {
                 recordingStream = await prepareEditingStream(stream, insertionTime);
             }
 
-            // Initialize MediaRecorder
+            // Initialize MediaRecorder with iOS-compatible options
             mediaRecorder = createMediaRecorder(recordingStream);
             audioChunks = [];
             
@@ -942,6 +990,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             if (error.name === 'NotAllowedError') {
                 handleError(ERROR_TYPES.PERMISSION, 'Microphone access denied', error);
+            } else if (error.name === 'NotFoundError') {
+                handleError(ERROR_TYPES.AUDIO, 'No microphone found', error);
             } else {
                 handleError(ERROR_TYPES.AUDIO, 'Failed to start recording', error);
             }
@@ -974,14 +1024,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createMediaRecorder(stream) {
-        const options = {
-            mimeType: 'audio/webm;codecs=opus',
+        // iOS-compatible MediaRecorder options
+        let options = {
             audioBitsPerSecond: 128000
         };
 
-        // Fallback to default if codec not supported
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            delete options.mimeType;
+        // Try different MIME types based on iOS compatibility
+        const mimeTypes = [
+            'audio/webm;codecs=opus',    // Preferred
+            'audio/mp4;codecs=mp4a.40.2', // iOS fallback
+            'audio/webm',                // Basic webm
+            'audio/mp4'                  // Basic mp4
+        ];
+
+        // Find first supported MIME type
+        for (const mimeType of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(mimeType)) {
+                options.mimeType = mimeType;
+                break;
+            }
+        }
+
+        // iOS Safari may not support high bitrates
+        if (isIOSSafari) {
+            options.audioBitsPerSecond = 64000; // Lower bitrate for iOS
         }
 
         const recorder = new MediaRecorder(stream, options);
