@@ -15,6 +15,7 @@
             --tertiary-color: #353535;
             --success-color: #4CAF50;
             --error-color: #ff4444;
+            --warning-color: #ffa500;
             --disabled-color: #666666;
             --font-family: 'Arial', sans-serif;
         }
@@ -48,6 +49,9 @@
             border-radius: 4px;
             margin-bottom: 20px;
             text-align: right;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         #connectionStatus {
             font-weight: bold;
@@ -56,6 +60,15 @@
         #connectionStatus::before {
             content: '●';
             margin-right: 8px;
+        }
+        .error-message {
+            background-color: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
         }
 
         /* --- Tabs --- */
@@ -286,6 +299,7 @@
     <div class="main-container">
         <h1>Medivox HDL</h1>
         <div class="status-bar">
+            <div class="error-message" id="errorMessage"></div>
             <div id="connectionStatus">Déconnecté</div>
         </div>
 
@@ -358,17 +372,40 @@
     <audio id="start-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAACA" preload="auto"></audio>
     <audio id="stop-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAAAE" preload="auto"></audio>
 
-
    <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Constants & Global Variables ---
-    const PERMANENT_SERVER_ADDRESS = 'my-radiology-server.medivox.ca';
+    // --- Constants & Configuration ---
+    const CONFIG = {
+        SERVER_ADDRESS: 'my-radiology-server.medivox.ca',
+        RECONNECT_DELAY: 5000,
+        MAX_RECONNECT_ATTEMPTS: 5,
+        AUDIO_CONSTRAINTS: {
+            sampleRate: 8000,
+            channels: 1,
+            bitDepth: 16
+        },
+        SUPPORTED_AUDIO_TYPES: ['audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg', 'audio/webm'],
+        MAX_FILE_SIZE: 50 * 1024 * 1024 // 50MB
+    };
+
+    // --- Error Types ---
+    const ERROR_TYPES = {
+        CONNECTION: 'connection',
+        AUDIO: 'audio',
+        FILE: 'file',
+        PROCESSING: 'processing',
+        PERMISSION: 'permission'
+    };
+
+    // --- Global State ---
     let socket = null;
-    let currentFile = null; // For both uploaded file and recorded blob
+    let currentFile = null;
     let transcribedText = "";
+    let reconnectAttempts = 0;
     
     // --- UI Elements ---
     const connectionStatus = document.getElementById('connectionStatus');
+    const errorMessage = document.getElementById('errorMessage');
     const processBtn = document.getElementById('processBtn');
     const progressLabel = document.getElementById('progressLabel');
     const processingContainer = document.getElementById('processing-container');
@@ -404,77 +441,227 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioChunks = [];
     let isRecording = false;
     let isPaused = false;
-    let editMode = 'insert'; // 'insert' or 'overwrite'
-    let originalBuffer = null; // To store AudioBuffer for editing
+    let editMode = 'insert';
+    let originalBuffer = null;
     
-    // --- Initial Setup ---
-    initializeWavesurfer();
-    connectWebSocket();
-    setupEventListeners();
-    updateRecorderUI();
+    // --- Initialize Application ---
+    initializeApplication();
 
-    // --- WebSocket Logic ---
+    function initializeApplication() {
+        try {
+            initializeWavesurfer();
+            connectWebSocket();
+            setupEventListeners();
+            updateRecorderUI();
+        } catch (error) {
+            handleError(ERROR_TYPES.PROCESSING, 'Failed to initialize application', error);
+        }
+    }
+
+    // --- Enhanced Error Handling System ---
+    function handleError(type, message, error = null) {
+        console.error(`[${type.toUpperCase()}] ${message}:`, error);
+        
+        let userMessage = message;
+        let severity = 'error';
+        
+        switch (type) {
+            case ERROR_TYPES.CONNECTION:
+                userMessage = getConnectionErrorMessage(error);
+                severity = reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS ? 'warning' : 'error';
+                break;
+                
+            case ERROR_TYPES.AUDIO:
+                userMessage = getAudioErrorMessage(error);
+                break;
+                
+            case ERROR_TYPES.FILE:
+                userMessage = getFileErrorMessage(error);
+                break;
+                
+            case ERROR_TYPES.PERMISSION:
+                userMessage = "Permissions requises non accordées. Veuillez autoriser l'accès au microphone.";
+                break;
+                
+            case ERROR_TYPES.PROCESSING:
+                userMessage = "Erreur de traitement. Veuillez réessayer.";
+                break;
+        }
+        
+        showErrorMessage(userMessage, severity);
+        
+        // Auto-recovery for certain error types
+        if (type === ERROR_TYPES.CONNECTION && reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS) {
+            setTimeout(() => connectWebSocket(), CONFIG.RECONNECT_DELAY);
+        }
+    }
+
+    function getConnectionErrorMessage(error) {
+        if (!error) return "Erreur de connexion inconnue";
+        
+        const errorMessages = {
+            1006: "Connexion fermée de manière inattendue",
+            1011: "Erreur serveur interne",
+            1012: "Service en cours de redémarrage"
+        };
+        
+        return errorMessages[error.code] || `Erreur de connexion: ${error.message || 'Code ' + error.code}`;
+    }
+
+    function getAudioErrorMessage(error) {
+        if (!error) return "Erreur audio inconnue";
+        
+        const audioErrorMessages = {
+            'NotAllowedError': "Permission d'accès au microphone refusée",
+            'NotFoundError': "Aucun microphone détecté",
+            'NotReadableError': "Microphone en cours d'utilisation par une autre application",
+            'OverconstrainedError': "Paramètres audio non supportés",
+            'SecurityError': "Accès microphone bloqué (HTTPS requis)"
+        };
+        
+        return audioErrorMessages[error.name] || `Erreur audio: ${error.message}`;
+    }
+
+    function getFileErrorMessage(error) {
+        if (!error) return "Erreur de fichier inconnue";
+        
+        if (error.type === 'size') return `Fichier trop volumineux (max ${CONFIG.MAX_FILE_SIZE / (1024*1024)}MB)`;
+        if (error.type === 'format') return "Format de fichier non supporté";
+        
+        return `Erreur de fichier: ${error.message}`;
+    }
+
+    function showErrorMessage(message, severity = 'error') {
+        errorMessage.textContent = message;
+        errorMessage.className = `error-message ${severity}`;
+        errorMessage.style.display = 'block';
+        
+        // Auto-hide non-critical errors after 10 seconds
+        if (severity === 'warning') {
+            setTimeout(hideErrorMessage, 10000);
+        }
+    }
+
+    function hideErrorMessage() {
+        errorMessage.style.display = 'none';
+    }
+
+    // --- Enhanced WebSocket Logic ---
     function connectWebSocket() {
-        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
-        const url = `wss://${PERMANENT_SERVER_ADDRESS}`;
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+            return;
+        }
+
+        const url = `wss://${CONFIG.SERVER_ADDRESS}`;
         connectionStatus.textContent = 'Connexion...';
-        connectionStatus.style.color = 'orange';
-        socket = new WebSocket(url);
+        connectionStatus.style.color = 'var(--warning-color)';
+        
+        try {
+            socket = new WebSocket(url);
+            setupWebSocketHandlers();
+        } catch (error) {
+            handleError(ERROR_TYPES.CONNECTION, 'Failed to create WebSocket connection', error);
+            reconnectAttempts++;
+        }
+    }
+
+    function setupWebSocketHandlers() {
         socket.onopen = () => {
-            console.log('Connecté au serveur');
+            console.log('Connected to server');
+            reconnectAttempts = 0;
             updateUIForConnection(true);
+            hideErrorMessage();
             showProgress("Connecté au serveur de transcription.");
             setTimeout(hideProgress, 3000);
         };
+
         socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            handleServerMessage(data);
+            try {
+                const data = JSON.parse(event.data);
+                handleServerMessage(data);
+            } catch (error) {
+                handleError(ERROR_TYPES.PROCESSING, 'Invalid server response', error);
+            }
         };
+
         socket.onerror = (error) => {
-            console.error('WebSocket Error:', error);
+            handleError(ERROR_TYPES.CONNECTION, 'WebSocket error occurred', error);
             updateUIForConnection(false);
         };
-        socket.onclose = () => {
-            console.log('Déconnecté du serveur. Nouvelle tentative dans 5 secondes...');
+
+        socket.onclose = (event) => {
+            console.log('Disconnected from server');
             socket = null;
             updateUIForConnection(false);
-            setTimeout(connectWebSocket, 5000);
+            
+            if (!event.wasClean) {
+                reconnectAttempts++;
+                handleError(ERROR_TYPES.CONNECTION, 'Connection lost', { code: event.code, message: event.reason });
+            }
         };
     }
     
     function handleServerMessage(data) {
-        const { action, message, text, performance } = data;
-        switch (action) {
-            case 'progress':
-                showProgress(message);
-                break;
-            case 'transcription_complete':
-                transcribedText = text || "Erreur : aucun texte reçu.";
-                const speed = performance ? `(${performance.speed || 'N/A'})` : '';
-                showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
-                requestFormatting();
-                break;
-            case 'formatting_complete':
-                hideProgress();
-                resultText.innerHTML = formatTextAsHtml(text);
-                processBtn.disabled = false;
-                processBtn.textContent = "Transcrire et Formater";
-                toggleSections(true);
-                break;
-            case 'error':
-                alert(`Erreur du serveur: ${message || 'Erreur inconnue.'}`);
-                resetUIafterProcessing();
-                break;
+        const { action, message, text, performance, error: serverError } = data;
+        
+        try {
+            switch (action) {
+                case 'progress':
+                    showProgress(message);
+                    break;
+                    
+                case 'transcription_complete':
+                    if (!text) {
+                        throw new Error('No transcription text received');
+                    }
+                    transcribedText = text;
+                    const speed = performance ? `(${performance.speed || 'N/A'})` : '';
+                    showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
+                    requestFormatting();
+                    break;
+                    
+                case 'formatting_complete':
+                    if (!text) {
+                        throw new Error('No formatted text received');
+                    }
+                    hideProgress();
+                    resultText.innerHTML = formatTextAsHtml(text);
+                    processBtn.disabled = false;
+                    processBtn.textContent = "Transcrire et Formater";
+                    toggleSections(true);
+                    break;
+                    
+                case 'error':
+                    throw new Error(message || serverError || 'Unknown server error');
+                    
+                default:
+                    console.warn('Unknown server action:', action);
+            }
+        } catch (error) {
+            handleError(ERROR_TYPES.PROCESSING, 'Server message processing failed', error);
+            resetUIafterProcessing();
         }
     }
     
     function requestFormatting() {
-        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            throw new Error('WebSocket not connected');
+        }
+        
+        if (!transcribedText) {
+            throw new Error('No transcribed text to format');
+        }
+        
         const message = {
             action: "format_text",
             text: transcribedText
         };
-        socket.send(JSON.stringify(message));
+        
+        try {
+            socket.send(JSON.stringify(message));
+        } catch (error) {
+            handleError(ERROR_TYPES.CONNECTION, 'Failed to send formatting request', error);
+        }
     }
     
     // --- UI State Management ---
@@ -517,60 +704,119 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.value = '';
         
         // Reset recorder state
-        wavesurfer.empty();
+        resetRecorderState();
+        updateProcessButtonState();
+    }
+
+    function resetRecorderState() {
+        if (wavesurfer) {
+            wavesurfer.empty();
+        }
         originalBuffer = null;
         updateTimeline(0, 0);
         updateRecorderUI();
-
-        updateProcessButtonState();
     }
     
-    // --- File Handling & Processing ---
-    function handleFileSelect(file) {
-        if (!file || !file.type.startsWith('audio/')) {
-            alert('Veuillez sélectionner un fichier audio.');
-            return;
+    // --- Enhanced File Handling ---
+    function validateFile(file) {
+        if (!file) {
+            throw { type: 'format', message: 'No file provided' };
         }
-        currentFile = file;
-        fileLabel.textContent = `Sélectionné : ${file.name}`;
-        updateProcessButtonState();
+        
+        if (file.size > CONFIG.MAX_FILE_SIZE) {
+            throw { type: 'size', message: `File size (${Math.round(file.size/(1024*1024))}MB) exceeds limit` };
+        }
+        
+        const isValidType = CONFIG.SUPPORTED_AUDIO_TYPES.some(type => 
+            file.type === type || file.name.toLowerCase().endsWith(type.split('/')[1])
+        );
+        
+        if (!isValidType) {
+            throw { type: 'format', message: `Unsupported file type: ${file.type}` };
+        }
+        
+        return true;
+    }
+
+    function handleFileSelect(file) {
+        try {
+            validateFile(file);
+            currentFile = file;
+            fileLabel.textContent = `Sélectionné : ${file.name}`;
+            hideErrorMessage();
+            updateProcessButtonState();
+        } catch (error) {
+            handleError(ERROR_TYPES.FILE, 'File validation failed', error);
+            currentFile = null;
+            updateProcessButtonState();
+        }
     }
 
     function processAndSendAudio() {
-        if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) return;
+        if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) {
+            handleError(ERROR_TYPES.PROCESSING, 'Cannot process audio: missing file or connection');
+            return;
+        }
 
         processBtn.disabled = true;
         processBtn.textContent = 'Traitement...';
 
-        // If currentFile is a recorded blob, convert it to WAV first
-        if (currentFile.type !== 'audio/wav') {
-            showProgress("Conversion de l'enregistrement en WAV...");
-            audioBufferToWav(originalBuffer).then(wavBlob => {
-                currentFile = new File([wavBlob], "recording.wav", {type: "audio/wav"});
+        try {
+            // If currentFile is a recorded blob, convert it to WAV first
+            if (currentFile.type !== 'audio/wav' && originalBuffer) {
+                showProgress("Conversion de l'enregistrement en WAV...");
+                audioBufferToWav(originalBuffer)
+                    .then(wavBlob => {
+                        currentFile = new File([wavBlob], "recording.wav", {type: "audio/wav"});
+                        sendFileToServer();
+                    })
+                    .catch(error => {
+                        handleError(ERROR_TYPES.AUDIO, "WAV conversion failed", error);
+                        resetUIafterProcessing();
+                    });
+            } else {
                 sendFileToServer();
-            }).catch(err => {
-                console.error("WAV conversion failed:", err);
-                alert("La conversion de l'audio a échoué.");
-                resetUIafterProcessing();
-            });
-        } else {
-            // It's already a file (likely uploaded), send directly
-            sendFileToServer();
+            }
+        } catch (error) {
+            handleError(ERROR_TYPES.PROCESSING, 'Audio processing failed', error);
+            resetUIafterProcessing();
         }
     }
 
     function sendFileToServer() {
         showProgress("Lecture et envoi de l'audio au serveur...");
+        
         const reader = new FileReader();
+        
         reader.onload = (e) => {
-            const base64Audio = e.target.result.split(',')[1];
-            socket.send(JSON.stringify({ action: "transcribe_audio", audio: base64Audio }));
+            try {
+                const base64Audio = e.target.result.split(',')[1];
+                if (!base64Audio) {
+                    throw new Error('Failed to encode file to base64');
+                }
+                
+                const message = {
+                    action: "transcribe_audio",
+                    audio: base64Audio,
+                    metadata: {
+                        filename: currentFile.name,
+                        size: currentFile.size,
+                        type: currentFile.type
+                    }
+                };
+                
+                socket.send(JSON.stringify(message));
+            } catch (error) {
+                handleError(ERROR_TYPES.PROCESSING, 'Failed to send audio data', error);
+                resetUIafterProcessing();
+            }
         };
+        
         reader.onerror = (error) => {
-            console.error("Erreur de lecture du fichier :", error);
-            alert("Échec de la lecture du fichier audio.");
+            handleError(ERROR_TYPES.FILE, 'Failed to read audio file', error);
             resetUIafterProcessing();
         };
+        
         reader.readAsDataURL(currentFile);
     }
     
@@ -581,34 +827,41 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProcessButtonState();
     }
     
-    // --- Recorder Logic ---
+    // --- Enhanced Recorder Logic ---
     function initializeWavesurfer() {
-        wavesurfer = WaveSurfer.create({
-            container: '#waveform',
-            waveColor: 'rgb(200, 200, 200)',
-            progressColor: 'rgb(100, 100, 200)',
-            barWidth: 2,
-            barGap: 1,
-            barRadius: 2,
-            cursorWidth: 2,
-            cursorColor: '#4a9eff',
-            height: 128,
-        });
+        try {
+            wavesurfer = WaveSurfer.create({
+                container: '#waveform',
+                waveColor: 'rgb(200, 200, 200)',
+                progressColor: 'rgb(100, 100, 200)',
+                barWidth: 2,
+                barGap: 1,
+                barRadius: 2,
+                cursorWidth: 2,
+                cursorColor: '#4a9eff',
+                height: 128,
+            });
 
-        wavesurfer.on('audioprocess', () => updateTimeline(wavesurfer.getCurrentTime(), wavesurfer.getDuration()));
-        wavesurfer.on('seek', () => updateTimeline(wavesurfer.getCurrentTime(), wavesurfer.getDuration()));
-        wavesurfer.on('finish', () => playBtn.textContent = '▶️ Play');
-        wavesurfer.on('ready', () => {
-             originalBuffer = wavesurfer.getDecodedData();
-             updateRecorderUI();
-             updateTimeline(0, wavesurfer.getDuration());
-        });
+            wavesurfer.on('audioprocess', () => updateTimeline(wavesurfer.getCurrentTime(), wavesurfer.getDuration()));
+            wavesurfer.on('seek', () => updateTimeline(wavesurfer.getCurrentTime(), wavesurfer.getDuration()));
+            wavesurfer.on('finish', () => playBtn.textContent = '▶️ Play');
+            wavesurfer.on('ready', () => {
+                originalBuffer = wavesurfer.getDecodedData();
+                updateRecorderUI();
+                updateTimeline(0, wavesurfer.getDuration());
+            });
+            wavesurfer.on('error', (error) => {
+                handleError(ERROR_TYPES.AUDIO, 'Waveform error', error);
+            });
+        } catch (error) {
+            handleError(ERROR_TYPES.AUDIO, 'Failed to initialize waveform', error);
+        }
     }
 
     function updateRecorderUI() {
         const hasRecording = wavesurfer && wavesurfer.getDuration() > 0;
         
-        recordBtn.disabled = false; // Always enabled unless processing
+        recordBtn.disabled = false;
         stopBtn.disabled = !isRecording && !isPaused;
         playBtn.disabled = isRecording || !hasRecording;
         rewindBtn.disabled = isRecording || !hasRecording;
@@ -626,274 +879,548 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function toggleRecording() {
-        if (isRecording) {
+        try {
+            if (isRecording) {
+                pauseRecording();
+            } else if (isPaused) {
+                resumeRecording();
+            } else {
+                await startRecording();
+            }
+            updateRecorderUI();
+        } catch (error) {
+            handleError(ERROR_TYPES.AUDIO, 'Recording toggle failed', error);
+            resetRecordingState();
+        }
+    }
+
+    function pauseRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.pause();
             isPaused = true;
             isRecording = false;
-        } else if (isPaused) {
+        }
+    }
+
+    function resumeRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'paused') {
             mediaRecorder.resume();
             isPaused = false;
             isRecording = true;
-        } else {
-            await startRecording();
         }
-        updateRecorderUI();
     }
 
     async function startRecording() {
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Request microphone access
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    sampleRate: CONFIG.AUDIO_CONSTRAINTS.sampleRate,
+                    channelCount: CONFIG.AUDIO_CONSTRAINTS.channels,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                }
+            });
             
-            // Handle editing: manipulate the original buffer if it exists
             const insertionTime = wavesurfer.getCurrentTime();
-            let initialStream = stream;
+            let recordingStream = stream;
 
+            // Handle audio editing if there's existing content
             if (originalBuffer && insertionTime > 0) {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                
-                // Get audio data before the insertion point
-                const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
-                
-                // Create a source for the existing audio part
-                const sourceNode = audioContext.createBufferSource();
-                sourceNode.buffer = preSlice;
-
-                const mediaStreamDestination = audioContext.createMediaStreamDestination();
-                sourceNode.connect(mediaStreamDestination);
-                sourceNode.start(); // Play the pre-slice into the stream destination
-
-                // Now, get the microphone stream and merge it
-                const micSource = audioContext.createMediaStreamSource(stream);
-                micSource.connect(mediaStreamDestination);
-
-                initialStream = mediaStreamDestination.stream;
+                recordingStream = await prepareEditingStream(stream, insertionTime);
             }
 
-            mediaRecorder = new MediaRecorder(initialStream);
+            // Initialize MediaRecorder
+            mediaRecorder = createMediaRecorder(recordingStream);
             audioChunks = [];
-            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-            mediaRecorder.onstop = processFinishedRecording;
-
+            
             mediaRecorder.start();
             isRecording = true;
             isPaused = false;
-            startSound.play();
+            startSound.play().catch(() => {}); // Ignore sound errors
+            
         } catch (error) {
-            console.error("Error starting recording:", error);
-            alert("Impossible d'accéder au microphone. Veuillez vérifier les autorisations.");
+            if (error.name === 'NotAllowedError') {
+                handleError(ERROR_TYPES.PERMISSION, 'Microphone access denied', error);
+            } else {
+                handleError(ERROR_TYPES.AUDIO, 'Failed to start recording', error);
+            }
+            resetRecordingState();
         }
     }
 
+    async function prepareEditingStream(micStream, insertionTime) {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
+            
+            // Create a source for the existing audio part
+            const sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = preSlice;
+
+            const mediaStreamDestination = audioContext.createMediaStreamDestination();
+            sourceNode.connect(mediaStreamDestination);
+            sourceNode.start();
+
+            // Merge with microphone stream
+            const micSource = audioContext.createMediaStreamSource(micStream);
+            micSource.connect(mediaStreamDestination);
+
+            return mediaStreamDestination.stream;
+        } catch (error) {
+            console.warn('Failed to prepare editing stream, using direct recording:', error);
+            return micStream;
+        }
+    }
+
+    function createMediaRecorder(stream) {
+        const options = {
+            mimeType: 'audio/webm;codecs=opus',
+            audioBitsPerSecond: 128000
+        };
+
+        // Fallback to default if codec not supported
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            delete options.mimeType;
+        }
+
+        const recorder = new MediaRecorder(stream, options);
+        
+        recorder.ondataavailable = event => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+        
+        recorder.onstop = () => processFinishedRecording();
+        
+        recorder.onerror = (event) => {
+            handleError(ERROR_TYPES.AUDIO, 'MediaRecorder error', event.error);
+            resetRecordingState();
+        };
+
+        return recorder;
+    }
+
     function stopRecording() {
-        if (mediaRecorder && (isRecording || isPaused)) {
-            mediaRecorder.stop(); // This will trigger 'onstop' event
+        try {
+            if (mediaRecorder && (isRecording || isPaused)) {
+                mediaRecorder.stop();
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                isRecording = false;
+                isPaused = false;
+                stopSound.play().catch(() => {});
+            }
+        } catch (error) {
+            handleError(ERROR_TYPES.AUDIO, 'Failed to stop recording', error);
+        } finally {
+            updateRecorderUI();
+        }
+    }
+
+    function resetRecordingState() {
+        isRecording = false;
+        isPaused = false;
+        if (stream) {
             stream.getTracks().forEach(track => track.stop());
-            isRecording = false;
-            isPaused = false;
-            stopSound.play();
+            stream = null;
         }
         updateRecorderUI();
     }
     
     async function processFinishedRecording() {
-        const recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        
         try {
+            if (audioChunks.length === 0) {
+                throw new Error('No audio data recorded');
+            }
+
+            const recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
             const arrayBuffer = await recordedBlob.arrayBuffer();
             const newRecordingBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-            let finalBuffer;
-            const insertionTime = wavesurfer.getCurrentTime();
+            const finalBuffer = await processAudioEditing(newRecordingBuffer);
             
-            if (originalBuffer && insertionTime > 0) {
-                 const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
-
-                if (editMode === 'insert') {
-                    const postSlice = sliceAudioBuffer(originalBuffer, insertionTime, originalBuffer.duration);
-                    finalBuffer = concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
-                } else { // Overwrite mode
-                    const newEndTime = insertionTime + newRecordingBuffer.duration;
-                    if (newEndTime < originalBuffer.duration) {
-                        const postSlice = sliceAudioBuffer(originalBuffer, newEndTime, originalBuffer.duration);
-                        finalBuffer = concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
-                    } else {
-                        finalBuffer = concatAudioBuffers([preSlice, newRecordingBuffer]);
-                    }
-                }
-            } else {
-                finalBuffer = newRecordingBuffer;
-            }
-
-            // Load the final, edited buffer into wavesurfer
+            // Load the final buffer into wavesurfer
             wavesurfer.loadDecodedData(finalBuffer);
-            currentFile = new Blob([]); // A placeholder blob, will be converted to WAV on send.
+            currentFile = new Blob([]); // Placeholder - will be converted to WAV on send
             
         } catch (error) {
-            console.error("Error processing recording:", error);
-            alert("Une erreur s'est produite lors du traitement de l'enregistrement.");
+            handleError(ERROR_TYPES.AUDIO, 'Failed to process recording', error);
+        } finally {
+            updateProcessButtonState();
+            resetRecordingState();
         }
-        updateProcessButtonState();
+    }
+
+    async function processAudioEditing(newRecordingBuffer) {
+        const insertionTime = wavesurfer.getCurrentTime();
+        
+        if (!originalBuffer || insertionTime === 0) {
+            return newRecordingBuffer;
+        }
+
+        try {
+            const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
+
+            if (editMode === 'insert') {
+                const postSlice = sliceAudioBuffer(originalBuffer, insertionTime, originalBuffer.duration);
+                return concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
+            } else { // Overwrite mode
+                const newEndTime = insertionTime + newRecordingBuffer.duration;
+                if (newEndTime < originalBuffer.duration) {
+                    const postSlice = sliceAudioBuffer(originalBuffer, newEndTime, originalBuffer.duration);
+                    return concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
+                } else {
+                    return concatAudioBuffers([preSlice, newRecordingBuffer]);
+                }
+            }
+        } catch (error) {
+            console.warn('Audio editing failed, using new recording only:', error);
+            return newRecordingBuffer;
+        }
     }
     
-    // --- Audio Buffer Manipulation Utilities ---
-    function sliceAudioBuffer(buffer, start, end) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const rate = buffer.sampleRate;
-        const startOffset = Math.round(rate * start);
-        const endOffset = Math.round(rate * end);
-        const frameCount = endOffset - startOffset;
-        
-        if (frameCount <= 0) return audioContext.createBuffer(buffer.numberOfChannels, 1, rate);
-
-        const newBuffer = audioContext.createBuffer(buffer.numberOfChannels, frameCount, rate);
-        for (let i = 0; i < buffer.numberOfChannels; i++) {
-            newBuffer.copyToChannel(buffer.getChannelData(i).slice(startOffset, endOffset), i);
+    // --- Improved Audio Buffer Manipulation ---
+    function validateAudioBuffer(buffer) {
+        if (!buffer || !buffer.sampleRate || !buffer.numberOfChannels || buffer.length === 0) {
+            throw new Error('Invalid audio buffer');
         }
-        return newBuffer;
+        return true;
+    }
+
+    function sliceAudioBuffer(buffer, start, end) {
+        try {
+            validateAudioBuffer(buffer);
+            
+            if (start < 0) start = 0;
+            if (end > buffer.duration) end = buffer.duration;
+            if (start >= end) throw new Error('Invalid slice parameters');
+
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const rate = buffer.sampleRate;
+            const startOffset = Math.max(0, Math.round(rate * start));
+            const endOffset = Math.min(buffer.length, Math.round(rate * end));
+            const frameCount = endOffset - startOffset;
+            
+            if (frameCount <= 0) {
+                return audioContext.createBuffer(buffer.numberOfChannels, 1, rate);
+            }
+
+            const newBuffer = audioContext.createBuffer(buffer.numberOfChannels, frameCount, rate);
+            
+            for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+                const channelData = buffer.getChannelData(channel);
+                const slicedData = channelData.slice(startOffset, endOffset);
+                newBuffer.copyToChannel(slicedData, channel);
+            }
+            
+            return newBuffer;
+        } catch (error) {
+            console.error('Audio buffer slicing failed:', error);
+            throw error;
+        }
     }
 
     function concatAudioBuffers(buffers) {
-        if (!buffers || buffers.length === 0) return null;
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
-        const firstBuffer = buffers[0];
-        const result = audioContext.createBuffer(firstBuffer.numberOfChannels, totalLength, firstBuffer.sampleRate);
-
-        let offset = 0;
-        for (const buffer of buffers) {
-            for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-                result.getChannelData(channel).set(buffer.getChannelData(channel), offset);
+        try {
+            if (!buffers || buffers.length === 0) {
+                throw new Error('No buffers to concatenate');
             }
-            offset += buffer.length;
-        }
-        return result;
-    }
 
+            // Validate all buffers
+            buffers.forEach((buffer, index) => {
+                if (!validateAudioBuffer(buffer)) {
+                    throw new Error(`Invalid buffer at index ${index}`);
+                }
+            });
+
+            const firstBuffer = buffers[0];
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Check that all buffers have the same sample rate and channel count
+            const sampleRate = firstBuffer.sampleRate;
+            const numberOfChannels = firstBuffer.numberOfChannels;
+            
+            for (const buffer of buffers) {
+                if (buffer.sampleRate !== sampleRate) {
+                    console.warn('Sample rate mismatch in concatenation');
+                }
+                if (buffer.numberOfChannels !== numberOfChannels) {
+                    console.warn('Channel count mismatch in concatenation');
+                }
+            }
+
+            const totalLength = buffers.reduce((acc, buffer) => acc + buffer.length, 0);
+            const result = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
+
+            let offset = 0;
+            for (const buffer of buffers) {
+                for (let channel = 0; channel < Math.min(numberOfChannels, buffer.numberOfChannels); channel++) {
+                    const targetChannelData = result.getChannelData(channel);
+                    const sourceChannelData = buffer.getChannelData(channel);
+                    targetChannelData.set(sourceChannelData, offset);
+                }
+                offset += buffer.length;
+            }
+            
+            return result;
+        } catch (error) {
+            console.error('Audio buffer concatenation failed:', error);
+            throw error;
+        }
+    }
 
     function updateTimeline(current, total) {
         const formatTime = (time) => {
+            if (!time || isNaN(time)) time = 0;
             const minutes = Math.floor(time / 60);
             const seconds = Math.floor(time % 60);
             const milliseconds = Math.floor((time % 1) * 10);
             return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
         };
+        
         timeline.textContent = `${formatTime(current)} / ${formatTime(total)}`;
     }
     
-    // --- WAV Conversion ---
+    // --- Enhanced WAV Conversion with Validation ---
     async function audioBufferToWav(buffer) {
-        const targetSampleRate = 8000;
-        const numChannels = 1; // Mono
-        
-        // Offline context for resampling
-        const offlineContext = new OfflineAudioContext(numChannels, buffer.duration * targetSampleRate, targetSampleRate);
-        const bufferSource = offlineContext.createBufferSource();
-        bufferSource.buffer = buffer;
-        bufferSource.connect(offlineContext.destination);
-        bufferSource.start();
-        
-        const resampledBuffer = await offlineContext.startRendering();
-        
-        // Get PCM data and encode to 16-bit
-        const pcmData = resampledBuffer.getChannelData(0);
-        const dataView = encodePCM(pcmData);
-        
-        // Add WAV header
-        return new Blob([writeWavHeader(dataView, resampledBuffer.sampleRate, numChannels)], { type: 'audio/wav' });
-    }
-    
-    function encodePCM(samples) {
-        const buffer = new ArrayBuffer(samples.length * 2);
-        const view = new DataView(buffer);
-        let offset = 0;
-        for (let i = 0; i < samples.length; i++, offset += 2) {
-            let s = Math.max(-1, Math.min(1, samples[i]));
-            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        try {
+            validateAudioBuffer(buffer);
+            
+            const targetSampleRate = CONFIG.AUDIO_CONSTRAINTS.sampleRate;
+            const numChannels = CONFIG.AUDIO_CONSTRAINTS.channels;
+            
+            // Resample if necessary
+            let processedBuffer = buffer;
+            if (buffer.sampleRate !== targetSampleRate || buffer.numberOfChannels !== numChannels) {
+                processedBuffer = await resampleAudioBuffer(buffer, targetSampleRate, numChannels);
+            }
+            
+            // Get PCM data and encode to 16-bit
+            const pcmData = processedBuffer.getChannelData(0);
+            const dataView = encodePCMToInt16(pcmData);
+            
+            // Create WAV file
+            const wavBuffer = createWavFile(dataView, targetSampleRate, numChannels);
+            return new Blob([wavBuffer], { type: 'audio/wav' });
+            
+        } catch (error) {
+            handleError(ERROR_TYPES.AUDIO, 'WAV conversion failed', error);
+            throw error;
         }
-        return view;
+    }
+
+    async function resampleAudioBuffer(buffer, targetSampleRate, targetChannels) {
+        try {
+            const offlineContext = new OfflineAudioContext(
+                targetChannels,
+                Math.ceil(buffer.duration * targetSampleRate),
+                targetSampleRate
+            );
+            
+            const bufferSource = offlineContext.createBufferSource();
+            bufferSource.buffer = buffer;
+            bufferSource.connect(offlineContext.destination);
+            bufferSource.start();
+            
+            return await offlineContext.startRendering();
+        } catch (error) {
+            console.error('Audio resampling failed:', error);
+            throw error;
+        }
     }
     
-    function writeWavHeader(dataView, sampleRate, numChannels) {
-        const dataLength = dataView.byteLength;
-        const buffer = new ArrayBuffer(44 + dataLength);
-        const view = new DataView(buffer);
-        
-        // RIFF header
-        writeString(view, 0, 'RIFF');
-        view.setUint32(4, 36 + dataLength, true);
-        writeString(view, 8, 'WAVE');
-        // fmt chunk
-        writeString(view, 12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true); // PCM
-        view.setUint16(22, numChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * 2 * numChannels, true); // byteRate
-        view.setUint16(32, numChannels * 2, true); // blockAlign
-        view.setUint16(34, 16, true); // bitsPerSample
-        // data chunk
-        writeString(view, 36, 'data');
-        view.setUint32(40, dataLength, true);
-        
-        // Write PCM data
-        new Uint8Array(buffer, 44).set(new Uint8Array(dataView.buffer));
-        
-        return view;
+    function encodePCMToInt16(samples) {
+        try {
+            if (!samples || samples.length === 0) {
+                throw new Error('No PCM samples to encode');
+            }
+
+            const buffer = new ArrayBuffer(samples.length * 2);
+            const view = new DataView(buffer);
+            
+            for (let i = 0; i < samples.length; i++) {
+                // Clamp sample to [-1, 1] range
+                let sample = Math.max(-1, Math.min(1, samples[i]));
+                
+                // Convert to 16-bit signed integer
+                const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                view.setInt16(i * 2, Math.round(intSample), true);
+            }
+            
+            return view;
+        } catch (error) {
+            console.error('PCM encoding failed:', error);
+            throw error;
+        }
+    }
+    
+    function createWavFile(dataView, sampleRate, numChannels) {
+        try {
+            if (!dataView || !sampleRate || !numChannels) {
+                throw new Error('Invalid WAV parameters');
+            }
+
+            const dataLength = dataView.byteLength;
+            const buffer = new ArrayBuffer(44 + dataLength);
+            const view = new DataView(buffer);
+            
+            // WAV file header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataLength, true);
+            writeString(view, 8, 'WAVE');
+            
+            // fmt chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // chunk size
+            view.setUint16(20, 1, true);  // PCM format
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2 * numChannels, true); // byte rate
+            view.setUint16(32, numChannels * 2, true); // block align
+            view.setUint16(34, 16, true); // bits per sample
+            
+            // data chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataLength, true);
+            
+            // Write PCM data
+            new Uint8Array(buffer, 44).set(new Uint8Array(dataView.buffer));
+            
+            return view;
+        } catch (error) {
+            console.error('WAV file creation failed:', error);
+            throw error;
+        }
     }
     
     function writeString(view, offset, string) {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
+        try {
+            if (!view || offset < 0 || !string) {
+                throw new Error('Invalid string write parameters');
+            }
+
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        } catch (error) {
+            console.error('String writing failed:', error);
+            throw error;
         }
     }
 
-
     // --- Event Listeners Setup ---
     function setupEventListeners() {
-        // --- Tabs ---
+        try {
+            setupTabListeners();
+            setupUploadListeners();
+            setupRecorderListeners();
+            setupActionListeners();
+        } catch (error) {
+            handleError(ERROR_TYPES.PROCESSING, 'Failed to setup event listeners', error);
+        }
+    }
+
+    function setupTabListeners() {
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                const tabId = button.dataset.tab;
-                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-                button.classList.add('active');
-                document.getElementById(tabId).classList.add('active');
+                try {
+                    const tabId = button.dataset.tab;
+                    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+                    button.classList.add('active');
+                    document.getElementById(tabId).classList.add('active');
+                } catch (error) {
+                    console.error('Tab switching failed:', error);
+                }
             });
         });
+    }
+
+    function setupUploadListeners() {
+        // Drag and drop
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('dragover');
+        });
         
-        // --- File Upload ---
-        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); });
-        dropzone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); });
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault(); e.stopPropagation();
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
         });
-        browseBtn.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFileSelect(e.target.files[0]); });
-
-        // --- Recorder Controls ---
-        recordBtn.addEventListener('click', () => { toggleRecording(); clickSound.play(); });
-        stopBtn.addEventListener('click', () => { stopRecording(); });
-        playBtn.addEventListener('click', () => { wavesurfer.playPause(); playBtn.textContent = wavesurfer.isPlaying() ? '⏸️ Pause' : '▶️ Play'; clickSound.play(); });
-        rewindBtn.addEventListener('click', () => { wavesurfer.skip(-3); clickSound.play(); });
-        forwardBtn.addEventListener('click', () => { wavesurfer.skip(3); clickSound.play(); });
         
-        insertModeBtn.addEventListener('click', () => {
-            editMode = 'insert';
-            insertModeBtn.classList.add('active');
-            overwriteModeBtn.classList.remove('active');
-            clickSound.play();
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
         });
-        overwriteModeBtn.addEventListener('click', () => {
-            editMode = 'overwrite';
-            overwriteModeBtn.classList.add('active');
-            insertModeBtn.classList.remove('active');
-            clickSound.play();
+        
+        browseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
         });
+    }
 
-        // --- Main Actions ---
+    function setupRecorderListeners() {
+        recordBtn.addEventListener('click', () => {
+            toggleRecording();
+            clickSound.play().catch(() => {});
+        });
+        
+        stopBtn.addEventListener('click', () => stopRecording());
+        
+        playBtn.addEventListener('click', () => {
+            try {
+                wavesurfer.playPause();
+                playBtn.textContent = wavesurfer.isPlaying() ? '⏸️ Pause' : '▶️ Play';
+                clickSound.play().catch(() => {});
+            } catch (error) {
+                handleError(ERROR_TYPES.AUDIO, 'Playback failed', error);
+            }
+        });
+        
+        rewindBtn.addEventListener('click', () => {
+            try {
+                wavesurfer.skip(-3);
+                clickSound.play().catch(() => {});
+            } catch (error) {
+                console.error('Rewind failed:', error);
+            }
+        });
+        
+        forwardBtn.addEventListener('click', () => {
+            try {
+                wavesurfer.skip(3);
+                clickSound.play().catch(() => {});
+            } catch (error) {
+                console.error('Forward failed:', error);
+            }
+        });
+        
+        insertModeBtn.addEventListener('click', () => setEditMode('insert'));
+        overwriteModeBtn.addEventListener('click', () => setEditMode('overwrite'));
+    }
+
+    function setEditMode(mode) {
+        editMode = mode;
+        insertModeBtn.classList.toggle('active', mode === 'insert');
+        overwriteModeBtn.classList.toggle('active', mode === 'overwrite');
+        clickSound.play().catch(() => {});
+    }
+
+    function setupActionListeners() {
         processBtn.addEventListener('click', processAndSendAudio);
         newSessionBtn.addEventListener('click', resetToStart);
         copyBtn.addEventListener('click', copyFormattedText);
@@ -903,73 +1430,114 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Text Formatting & Output ---
     function formatTextAsHtml(text) {
         if (!text) return "";
-        const lines = text.split('\n');
-        const formattedLines = lines.map(line => {
-            let processedLine = line.trim();
-            const boldStyle = 'font-weight:bold;';
-            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, `<span style="${boldStyle}">$1</span>`);
-            if (!processedLine.includes(boldStyle) && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
-                processedLine = `<span style="${boldStyle}">${processedLine}</span>`;
-            }
-            return processedLine;
-        });
-        return formattedLines.join('<br>');
+        
+        try {
+            const lines = text.split('\n');
+            const formattedLines = lines.map(line => {
+                let processedLine = line.trim();
+                const boldStyle = 'font-weight:bold;';
+                
+                // Replace **text** with bold spans
+                processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, `<span style="${boldStyle}">$1</span>`);
+                
+                // Make all-caps lines bold if not already formatted
+                if (!processedLine.includes(boldStyle) && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
+                    processedLine = `<span style="${boldStyle}">${processedLine}</span>`;
+                }
+                
+                return processedLine;
+            });
+            
+            return formattedLines.join('<br>');
+        } catch (error) {
+            console.error('Text formatting failed:', error);
+            return text; // Return original text if formatting fails
+        }
     }
     
     function copyFormattedText() {
-        const htmlContent = resultText.innerHTML;
-        const wordCompatibleHtml = htmlContent.replace(/<br\s*\/?>/gi, '</p><p>');
-        const styledHtml = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-            <head><meta charset="utf-8"><style>p { margin: 0; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; } span[style*="font-weight:bold"] { font-weight: bold !important; }</style></head>
-            <body><p>${wordCompatibleHtml}</p></body>
-            </html>`;
-        const plainText = resultText.innerText;
         try {
-            const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
-            const textBlob = new Blob([plainText], { type: 'text/plain' });
-            const clipboardItem = new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob });
-            navigator.clipboard.write([clipboardItem])
-                .then(() => alert("Rapport copié dans le presse-papiers avec formatage !"))
-                .catch(err => { console.error("Échec de la copie moderne : ", err); fallbackCopy(styledHtml); });
+            const htmlContent = resultText.innerHTML;
+            const wordCompatibleHtml = htmlContent.replace(/<br\s*\/?>/gi, '</p><p>');
+            const styledHtml = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+                <head><meta charset="utf-8"><style>p { margin: 0; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; } span[style*="font-weight:bold"] { font-weight: bold !important; }</style></head>
+                <body><p>${wordCompatibleHtml}</p></body>
+                </html>`;
+            const plainText = resultText.innerText;
+            
+            if (navigator.clipboard && navigator.clipboard.write) {
+                const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
+                const textBlob = new Blob([plainText], { type: 'text/plain' });
+                const clipboardItem = new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob });
+                
+                navigator.clipboard.write([clipboardItem])
+                    .then(() => alert("Rapport copié dans le presse-papiers avec formatage !"))
+                    .catch(err => {
+                        console.error("Modern clipboard failed:", err);
+                        fallbackCopy(styledHtml, plainText);
+                    });
+            } else {
+                fallbackCopy(styledHtml, plainText);
+            }
         } catch (error) {
-            console.error("L'API Clipboard moderne n'est pas prise en charge : ", error);
-            fallbackCopy(styledHtml);
+            handleError(ERROR_TYPES.PROCESSING, 'Copy failed', error);
         }
     }
 
-    function fallbackCopy(htmlContent) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '-9999px';
-        document.body.appendChild(tempDiv);
-        const range = document.createRange();
-        range.selectNodeContents(tempDiv);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+    function fallbackCopy(htmlContent, plainText) {
         try {
-            if (!document.execCommand('copy')) throw new Error('Copy command failed');
-            alert("Rapport copié dans le presse-papiers avec formatage !");
-        } catch (err) {
-            console.error('Fallback copy failed: ', err);
-            navigator.clipboard.writeText(resultText.innerText)
-                .then(() => alert("Rapport copié (texte brut uniquement)"))
-                .catch(() => alert("Échec de la copie du rapport"));
-        } finally {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.left = '-9999px';
+            document.body.appendChild(tempDiv);
+            
+            const range = document.createRange();
+            range.selectNodeContents(tempDiv);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            const copySuccess = document.execCommand('copy');
             document.body.removeChild(tempDiv);
             selection.removeAllRanges();
+            
+            if (copySuccess) {
+                alert("Rapport copié dans le presse-papiers avec formatage !");
+            } else {
+                // Final fallback to plain text
+                navigator.clipboard.writeText(plainText)
+                    .then(() => alert("Rapport copié (texte brut uniquement)"))
+                    .catch(() => alert("Échec de la copie du rapport"));
+            }
+        } catch (error) {
+            console.error('Fallback copy failed:', error);
+            alert("Échec de la copie du rapport");
         }
     }
     
     function saveTextToFile() {
-        const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `radiology_report_${Date.now()}.txt`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        try {
+            const text = resultText.innerText;
+            if (!text) {
+                alert("Aucun texte à sauvegarder");
+                return;
+            }
+
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `radiology_report_${Date.now()}.txt`;
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(link.href);
+        } catch (error) {
+            handleError(ERROR_TYPES.PROCESSING, 'File save failed', error);
+        }
     }
 });
 </script>
