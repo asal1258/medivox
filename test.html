@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medivox</title>
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --container-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --primary-color: #4a9eff;
+            --secondary-color: #252525;
+            --tertiary-color: #353535;
+            --success-color: #4CAF50;
+            --error-color: #ff4444;
+            --disabled-color: #666666;
+            --font-family: 'Arial', sans-serif;
+        }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .main-container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--bg-color);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .status-bar {
+            background-color: var(--secondary-color);
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        #connectionStatus {
+            font-weight: bold;
+            color: var(--error-color);
+        }
+        #connectionStatus::before {
+            content: '●';
+            margin-right: 8px;
+        }
+
+        /* --- Tabs --- */
+        .tabs {
+            display: flex;
+            margin-bottom: -2px; /* Overlap border */
+            z-index: 1;
+            position: relative;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: var(--secondary-color);
+            border: 2px solid var(--tertiary-color);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            margin-right: 5px;
+            color: #ccc;
+        }
+        .tab-button.active {
+            background-color: var(--container-bg);
+            border-color: var(--tertiary-color);
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        .tab-content {
+            background-color: var(--container-bg);
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 8px;
+            border-top-left-radius: 0;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid var(--tertiary-color);
+            margin-bottom: 20px;
+        }
+        #upload-tab-content {
+            border-top-left-radius: 0;
+        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+
+        /* --- Upload Section --- */
+        #dropzone {
+            width: 100%;
+            transition: border-color 0.3s;
+            padding: 0;
+            border: 2px dashed var(--tertiary-color);
+            border-radius: 8px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+        #dropzone.dragover {
+            border-color: var(--primary-color);
+            background-color: var(--secondary-color);
+        }
+        #dropzone-icon { font-size: 48px; }
+        #dropzone-text { font-size: 16px; color: #ccc; margin: 10px 0; }
+        #browseBtn {
+             background-color: var(--primary-color);
+             color: white;
+             padding: 10px 20px;
+             font-size: 14px;
+             border: none;
+             border-radius: 4px;
+             cursor: pointer;
+        }
+        #fileLabel {
+             margin-top: 15px;
+             font-style: italic;
+             color: var(--primary-color);
+        }
+
+        /* --- Recorder Section --- */
+        #recorder-tab-content {
+             gap: 15px;
+        }
+        #waveform {
+             width: 100%;
+             height: 128px;
+        }
+        #controls-timeline, #main-controls, #edit-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+        }
+        #main-controls button, #edit-controls button {
+            padding: 10px 15px;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            background: var(--tertiary-color);
+            color: white;
+            min-width: 50px;
+        }
+        #main-controls #recordBtn {
+            background-color: var(--error-color);
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+        }
+        #main-controls #recordBtn.recording {
+            background-color: #ff8c00; /* Orange for pause */
+        }
+         #main-controls #stopBtn {
+            background-color: var(--secondary-color);
+             width: 60px;
+             height: 60px;
+             font-size: 24px;
+        }
+        #timeline {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 18px;
+            color: var(--primary-color);
+        }
+        .edit-mode-toggle {
+            display: flex;
+            background-color: var(--secondary-color);
+            border-radius: 20px;
+            padding: 4px;
+        }
+        .edit-mode-toggle button {
+            background: transparent;
+            border: none;
+            padding: 6px 15px;
+            border-radius: 16px;
+            color: #ccc;
+            cursor: pointer;
+        }
+        .edit-mode-toggle button.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+
+        /* --- Common/Result Section --- */
+        .actions-bar, .result-header, .result-actions {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .actions-bar {
+            background-color: var(--bg-color);
+            justify-content: flex-start;
+        }
+        label { margin-right: 10px; }
+        select {
+            background-color: var(--tertiary-color);
+            color: var(--text-color);
+            border: 1px solid var(--tertiary-color);
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #processBtn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #processBtn:disabled {
+            background-color: var(--disabled-color);
+            cursor: not-allowed;
+        }
+        #progressLabel {
+            margin-left: 20px;
+            font-size: 14px;
+            color: var(--primary-color);
+            display: none;
+        }
+        .result-section { display: none; }
+        .result-header { justify-content: space-between; }
+        .result-header h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--success-color);
+            margin: 0;
+        }
+        #newSessionBtn, #copyBtn, #saveBtn {
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: white;
+            padding: 8px 15px;
+        }
+        #newSessionBtn { background-color: var(--container-bg); }
+        #resultText {
+            width: 100%;
+            max-height: 70vh;
+            overflow-y: auto;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+            padding: 15px;
+            box-sizing: border-box;
+            text-align: left;
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+        #resultText span[style*="font-weight:bold"] { font-weight: bold !important; }
+        .result-actions { justify-content: center; gap: 20px; margin-bottom: 0; }
+        #copyBtn { background-color: var(--success-color); }
+        #saveBtn { background-color: #2196F3; }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <h1>Medivox HDL</h1>
+        <div class="status-bar">
+            <div id="connectionStatus">Déconnecté</div>
+        </div>
+
+        <div id="processing-container">
+            <div class="tabs">
+                <button class="tab-button active" data-tab="upload-tab">Téléverser un fichier</button>
+                <button class="tab-button" data-tab="recorder-tab">Enregistrer un Audio</button>
+            </div>
+
+            <div id="upload-tab" class="tab-pane active">
+                <div class="tab-content">
+                    <div id="dropzone">
+                        <div id="dropzone-icon">📁</div>
+                        <div id="dropzone-text">Glissez-déposez votre fichier audio ici, ou cliquez sur Parcourir</div>
+                        <input type="file" id="fileInput" accept="audio/*" hidden>
+                        <button id="browseBtn">Parcourir</button>
+                        <div id="fileLabel"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="recorder-tab" class="tab-pane">
+                <div class="tab-content">
+                    <div id="waveform"></div>
+                    <div id="controls-timeline">
+                        <span id="timeline">00:00.0 / 00:00.0</span>
+                    </div>
+                    <div id="edit-controls">
+                         <button id="playBtn">▶️ Play</button>
+                         <button id="rewindBtn">⏪ 3s</button>
+                         <button id="forwardBtn">3s ⏩</button>
+                         <div class="edit-mode-toggle">
+                            <button id="insertModeBtn" class="active" title="Insert new audio at cursor position">Insérer</button>
+                            <button id="overwriteModeBtn" title="Record over existing audio from cursor position">Écraser</button>
+                         </div>
+                    </div>
+                     <div id="main-controls">
+                         <button id="recordBtn" title="Record/Pause">🎤</button>
+                         <button id="stopBtn" title="Stop Recording">⏹️</button>
+                     </div>
+                </div>
+            </div>
+            
+            <div class="actions-bar">
+                <div>
+                    <label for="templateSelect">Modèle :</label>
+                    <select id="templateSelect">
+                        <option value="Standard">Standard</option>
+                    </select>
+                </div>
+                <button id="processBtn" disabled>Transcrire et Formater</button>
+                <div id="progressLabel"></div>
+            </div>
+        </div>
+
+        <div id="resultSection" class="result-section">
+            <div class="result-header">
+                <h2>✅ Rapport Prêt</h2>
+                <button id="newSessionBtn">Nouvelle Session</button>
+            </div>
+            <div id="resultText"></div>
+            <div class="result-actions">
+                <button id="copyBtn">Copier le Rapport</button>
+                <button id="saveBtn">Enregistrer dans un Fichier</button>
+            </div>
+        </div>
+    </div>
+    
+    <audio id="click-sound" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAA" preload="auto"></audio>
+    <audio id="start-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAACA" preload="auto"></audio>
+    <audio id="stop-sound" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAAAE" preload="auto"></audio>
+
+
+   <script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Constants & Global Variables ---
+    const PERMANENT_SERVER_ADDRESS = 'my-radiology-server.medivox.ca';
+    let socket = null;
+    let currentFile = null; // For both uploaded file and recorded blob
+    let transcribedText = "";
+    
+    // --- UI Elements ---
+    const connectionStatus = document.getElementById('connectionStatus');
+    const processBtn = document.getElementById('processBtn');
+    const progressLabel = document.getElementById('progressLabel');
+    const processingContainer = document.getElementById('processing-container');
+    const resultSection = document.getElementById('resultSection');
+    const resultText = document.getElementById('resultText');
+    const newSessionBtn = document.getElementById('newSessionBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const saveBtn = document.getElementById('saveBtn');
+
+    // --- Upload Elements ---
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const browseBtn = document.getElementById('browseBtn');
+    const fileLabel = document.getElementById('fileLabel');
+
+    // --- Recorder Elements ---
+    const recordBtn = document.getElementById('recordBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const playBtn = document.getElementById('playBtn');
+    const rewindBtn = document.getElementById('rewindBtn');
+    const forwardBtn = document.getElementById('forwardBtn');
+    const insertModeBtn = document.getElementById('insertModeBtn');
+    const overwriteModeBtn = document.getElementById('overwriteModeBtn');
+    const timeline = document.getElementById('timeline');
+
+    // --- Sound Elements ---
+    const clickSound = document.getElementById('click-sound');
+    const startSound = document.getElementById('start-sound');
+    const stopSound = document.getElementById('stop-sound');
+    
+    // --- Recorder State ---
+    let wavesurfer, mediaRecorder, stream;
+    let audioChunks = [];
+    let isRecording = false;
+    let isPaused = false;
+    let editMode = 'insert'; // 'insert' or 'overwrite'
+    let originalBuffer = null; // To store AudioBuffer for editing
+    
+    // --- Initial Setup ---
+    initializeWavesurfer();
+    connectWebSocket();
+    setupEventListeners();
+    updateRecorderUI();
+
+    // --- WebSocket Logic ---
+    function connectWebSocket() {
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+        const url = `wss://${PERMANENT_SERVER_ADDRESS}`;
+        connectionStatus.textContent = 'Connexion...';
+        connectionStatus.style.color = 'orange';
+        socket = new WebSocket(url);
+        socket.onopen = () => {
+            console.log('Connecté au serveur');
+            updateUIForConnection(true);
+            showProgress("Connecté au serveur de transcription.");
+            setTimeout(hideProgress, 3000);
+        };
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            handleServerMessage(data);
+        };
+        socket.onerror = (error) => {
+            console.error('WebSocket Error:', error);
+            updateUIForConnection(false);
+        };
+        socket.onclose = () => {
+            console.log('Déconnecté du serveur. Nouvelle tentative dans 5 secondes...');
+            socket = null;
+            updateUIForConnection(false);
+            setTimeout(connectWebSocket, 5000);
+        };
+    }
+    
+    function handleServerMessage(data) {
+        const { action, message, text, performance } = data;
+        switch (action) {
+            case 'progress':
+                showProgress(message);
+                break;
+            case 'transcription_complete':
+                transcribedText = text || "Erreur : aucun texte reçu.";
+                const speed = performance ? `(${performance.speed || 'N/A'})` : '';
+                showProgress(`Transcription terminée ${speed}. Mise en forme en cours...`);
+                requestFormatting();
+                break;
+            case 'formatting_complete':
+                hideProgress();
+                resultText.innerHTML = formatTextAsHtml(text);
+                processBtn.disabled = false;
+                processBtn.textContent = "Transcrire et Formater";
+                toggleSections(true);
+                break;
+            case 'error':
+                alert(`Erreur du serveur: ${message || 'Erreur inconnue.'}`);
+                resetUIafterProcessing();
+                break;
+        }
+    }
+    
+    function requestFormatting() {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        const message = {
+            action: "format_text",
+            text: transcribedText
+        };
+        socket.send(JSON.stringify(message));
+    }
+    
+    // --- UI State Management ---
+    function updateUIForConnection(isConnected) {
+        if (isConnected) {
+            connectionStatus.textContent = 'Connecté';
+            connectionStatus.style.color = 'var(--success-color)';
+        } else {
+            connectionStatus.textContent = 'Déconnecté';
+            connectionStatus.style.color = 'var(--error-color)';
+        }
+        updateProcessButtonState();
+    }
+    
+    function updateProcessButtonState() {
+        const isConnected = socket && socket.readyState === WebSocket.OPEN;
+        processBtn.disabled = !isConnected || !currentFile;
+    }
+
+    function showProgress(message) {
+        progressLabel.textContent = message;
+        progressLabel.style.display = 'block';
+    }
+
+    function hideProgress() {
+        progressLabel.style.display = 'none';
+    }
+
+    function toggleSections(showResult) {
+        resultSection.style.display = showResult ? 'block' : 'none';
+        processingContainer.style.display = showResult ? 'none' : 'block';
+    }
+
+    function resetToStart() {
+        toggleSections(false);
+        currentFile = null;
+        transcribedText = "";
+        fileLabel.textContent = "";
+        resultText.innerHTML = "";
+        fileInput.value = '';
+        
+        // Reset recorder state
+        wavesurfer.empty();
+        originalBuffer = null;
+        updateTimeline(0, 0);
+        updateRecorderUI();
+
+        updateProcessButtonState();
+    }
+    
+    // --- File Handling & Processing ---
+    function handleFileSelect(file) {
+        if (!file || !file.type.startsWith('audio/')) {
+            alert('Veuillez sélectionner un fichier audio.');
+            return;
+        }
+        currentFile = file;
+        fileLabel.textContent = `Sélectionné : ${file.name}`;
+        updateProcessButtonState();
+    }
+
+    function processAndSendAudio() {
+        if (!currentFile || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+        processBtn.disabled = true;
+        processBtn.textContent = 'Traitement...';
+
+        // If currentFile is a recorded blob, convert it to WAV first
+        if (currentFile.type !== 'audio/wav') {
+            showProgress("Conversion de l'enregistrement en WAV...");
+            audioBufferToWav(originalBuffer).then(wavBlob => {
+                currentFile = new File([wavBlob], "recording.wav", {type: "audio/wav"});
+                sendFileToServer();
+            }).catch(err => {
+                console.error("WAV conversion failed:", err);
+                alert("La conversion de l'audio a échoué.");
+                resetUIafterProcessing();
+            });
+        } else {
+            // It's already a file (likely uploaded), send directly
+            sendFileToServer();
+        }
+    }
+
+    function sendFileToServer() {
+        showProgress("Lecture et envoi de l'audio au serveur...");
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64Audio = e.target.result.split(',')[1];
+            socket.send(JSON.stringify({ action: "transcribe_audio", audio: base64Audio }));
+        };
+        reader.onerror = (error) => {
+            console.error("Erreur de lecture du fichier :", error);
+            alert("Échec de la lecture du fichier audio.");
+            resetUIafterProcessing();
+        };
+        reader.readAsDataURL(currentFile);
+    }
+    
+    function resetUIafterProcessing() {
+        processBtn.disabled = false;
+        processBtn.textContent = 'Transcrire et Formater';
+        hideProgress();
+        updateProcessButtonState();
+    }
+    
+    // --- Recorder Logic ---
+    function initializeWavesurfer() {
+        wavesurfer = WaveSurfer.create({
+            container: '#waveform',
+            waveColor: 'rgb(200, 200, 200)',
+            progressColor: 'rgb(100, 100, 200)',
+            barWidth: 2,
+            barGap: 1,
+            barRadius: 2,
+            cursorWidth: 2,
+            cursorColor: '#4a9eff',
+            height: 128,
+        });
+
+        wavesurfer.on('audioprocess', () => updateTimeline(wavesurfer.getCurrentTime(), wavesurfer.getDuration()));
+        wavesurfer.on('seek', () => updateTimeline(wavesurfer.getCurrentTime(), wavesurfer.getDuration()));
+        wavesurfer.on('finish', () => playBtn.textContent = '▶️ Play');
+        wavesurfer.on('ready', () => {
+             originalBuffer = wavesurfer.getDecodedData();
+             updateRecorderUI();
+             updateTimeline(0, wavesurfer.getDuration());
+        });
+    }
+
+    function updateRecorderUI() {
+        const hasRecording = wavesurfer && wavesurfer.getDuration() > 0;
+        
+        recordBtn.disabled = false; // Always enabled unless processing
+        stopBtn.disabled = !isRecording && !isPaused;
+        playBtn.disabled = isRecording || !hasRecording;
+        rewindBtn.disabled = isRecording || !hasRecording;
+        forwardBtn.disabled = isRecording || !hasRecording;
+        insertModeBtn.disabled = isRecording;
+        overwriteModeBtn.disabled = isRecording;
+
+        if (isRecording) {
+            recordBtn.textContent = '⏸️';
+            recordBtn.classList.add('recording');
+        } else {
+            recordBtn.textContent = '🎤';
+            recordBtn.classList.remove('recording');
+        }
+    }
+    
+    async function toggleRecording() {
+        if (isRecording) {
+            mediaRecorder.pause();
+            isPaused = true;
+            isRecording = false;
+        } else if (isPaused) {
+            mediaRecorder.resume();
+            isPaused = false;
+            isRecording = true;
+        } else {
+            await startRecording();
+        }
+        updateRecorderUI();
+    }
+
+    async function startRecording() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Handle editing: manipulate the original buffer if it exists
+            const insertionTime = wavesurfer.getCurrentTime();
+            let initialStream = stream;
+
+            if (originalBuffer && insertionTime > 0) {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Get audio data before the insertion point
+                const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
+                
+                // Create a source for the existing audio part
+                const sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = preSlice;
+
+                const mediaStreamDestination = audioContext.createMediaStreamDestination();
+                sourceNode.connect(mediaStreamDestination);
+                sourceNode.start(); // Play the pre-slice into the stream destination
+
+                // Now, get the microphone stream and merge it
+                const micSource = audioContext.createMediaStreamSource(stream);
+                micSource.connect(mediaStreamDestination);
+
+                initialStream = mediaStreamDestination.stream;
+            }
+
+            mediaRecorder = new MediaRecorder(initialStream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+            mediaRecorder.onstop = processFinishedRecording;
+
+            mediaRecorder.start();
+            isRecording = true;
+            isPaused = false;
+            startSound.play();
+        } catch (error) {
+            console.error("Error starting recording:", error);
+            alert("Impossible d'accéder au microphone. Veuillez vérifier les autorisations.");
+        }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && (isRecording || isPaused)) {
+            mediaRecorder.stop(); // This will trigger 'onstop' event
+            stream.getTracks().forEach(track => track.stop());
+            isRecording = false;
+            isPaused = false;
+            stopSound.play();
+        }
+        updateRecorderUI();
+    }
+    
+    async function processFinishedRecording() {
+        const recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = await recordedBlob.arrayBuffer();
+            const newRecordingBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            let finalBuffer;
+            const insertionTime = wavesurfer.getCurrentTime();
+            
+            if (originalBuffer && insertionTime > 0) {
+                 const preSlice = sliceAudioBuffer(originalBuffer, 0, insertionTime);
+
+                if (editMode === 'insert') {
+                    const postSlice = sliceAudioBuffer(originalBuffer, insertionTime, originalBuffer.duration);
+                    finalBuffer = concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
+                } else { // Overwrite mode
+                    const newEndTime = insertionTime + newRecordingBuffer.duration;
+                    if (newEndTime < originalBuffer.duration) {
+                        const postSlice = sliceAudioBuffer(originalBuffer, newEndTime, originalBuffer.duration);
+                        finalBuffer = concatAudioBuffers([preSlice, newRecordingBuffer, postSlice]);
+                    } else {
+                        finalBuffer = concatAudioBuffers([preSlice, newRecordingBuffer]);
+                    }
+                }
+            } else {
+                finalBuffer = newRecordingBuffer;
+            }
+
+            // Load the final, edited buffer into wavesurfer
+            wavesurfer.loadDecodedData(finalBuffer);
+            currentFile = new Blob([]); // A placeholder blob, will be converted to WAV on send.
+            
+        } catch (error) {
+            console.error("Error processing recording:", error);
+            alert("Une erreur s'est produite lors du traitement de l'enregistrement.");
+        }
+        updateProcessButtonState();
+    }
+    
+    // --- Audio Buffer Manipulation Utilities ---
+    function sliceAudioBuffer(buffer, start, end) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const rate = buffer.sampleRate;
+        const startOffset = Math.round(rate * start);
+        const endOffset = Math.round(rate * end);
+        const frameCount = endOffset - startOffset;
+        
+        if (frameCount <= 0) return audioContext.createBuffer(buffer.numberOfChannels, 1, rate);
+
+        const newBuffer = audioContext.createBuffer(buffer.numberOfChannels, frameCount, rate);
+        for (let i = 0; i < buffer.numberOfChannels; i++) {
+            newBuffer.copyToChannel(buffer.getChannelData(i).slice(startOffset, endOffset), i);
+        }
+        return newBuffer;
+    }
+
+    function concatAudioBuffers(buffers) {
+        if (!buffers || buffers.length === 0) return null;
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
+        const firstBuffer = buffers[0];
+        const result = audioContext.createBuffer(firstBuffer.numberOfChannels, totalLength, firstBuffer.sampleRate);
+
+        let offset = 0;
+        for (const buffer of buffers) {
+            for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+                result.getChannelData(channel).set(buffer.getChannelData(channel), offset);
+            }
+            offset += buffer.length;
+        }
+        return result;
+    }
+
+
+    function updateTimeline(current, total) {
+        const formatTime = (time) => {
+            const minutes = Math.floor(time / 60);
+            const seconds = Math.floor(time % 60);
+            const milliseconds = Math.floor((time % 1) * 10);
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
+        };
+        timeline.textContent = `${formatTime(current)} / ${formatTime(total)}`;
+    }
+    
+    // --- WAV Conversion ---
+    async function audioBufferToWav(buffer) {
+        const targetSampleRate = 8000;
+        const numChannels = 1; // Mono
+        
+        // Offline context for resampling
+        const offlineContext = new OfflineAudioContext(numChannels, buffer.duration * targetSampleRate, targetSampleRate);
+        const bufferSource = offlineContext.createBufferSource();
+        bufferSource.buffer = buffer;
+        bufferSource.connect(offlineContext.destination);
+        bufferSource.start();
+        
+        const resampledBuffer = await offlineContext.startRendering();
+        
+        // Get PCM data and encode to 16-bit
+        const pcmData = resampledBuffer.getChannelData(0);
+        const dataView = encodePCM(pcmData);
+        
+        // Add WAV header
+        return new Blob([writeWavHeader(dataView, resampledBuffer.sampleRate, numChannels)], { type: 'audio/wav' });
+    }
+    
+    function encodePCM(samples) {
+        const buffer = new ArrayBuffer(samples.length * 2);
+        const view = new DataView(buffer);
+        let offset = 0;
+        for (let i = 0; i < samples.length; i++, offset += 2) {
+            let s = Math.max(-1, Math.min(1, samples[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+        return view;
+    }
+    
+    function writeWavHeader(dataView, sampleRate, numChannels) {
+        const dataLength = dataView.byteLength;
+        const buffer = new ArrayBuffer(44 + dataLength);
+        const view = new DataView(buffer);
+        
+        // RIFF header
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + dataLength, true);
+        writeString(view, 8, 'WAVE');
+        // fmt chunk
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2 * numChannels, true); // byteRate
+        view.setUint16(32, numChannels * 2, true); // blockAlign
+        view.setUint16(34, 16, true); // bitsPerSample
+        // data chunk
+        writeString(view, 36, 'data');
+        view.setUint32(40, dataLength, true);
+        
+        // Write PCM data
+        new Uint8Array(buffer, 44).set(new Uint8Array(dataView.buffer));
+        
+        return view;
+    }
+    
+    function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    }
+
+
+    // --- Event Listeners Setup ---
+    function setupEventListeners() {
+        // --- Tabs ---
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.dataset.tab;
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+                button.classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // --- File Upload ---
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+        });
+        browseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFileSelect(e.target.files[0]); });
+
+        // --- Recorder Controls ---
+        recordBtn.addEventListener('click', () => { toggleRecording(); clickSound.play(); });
+        stopBtn.addEventListener('click', () => { stopRecording(); });
+        playBtn.addEventListener('click', () => { wavesurfer.playPause(); playBtn.textContent = wavesurfer.isPlaying() ? '⏸️ Pause' : '▶️ Play'; clickSound.play(); });
+        rewindBtn.addEventListener('click', () => { wavesurfer.skip(-3); clickSound.play(); });
+        forwardBtn.addEventListener('click', () => { wavesurfer.skip(3); clickSound.play(); });
+        
+        insertModeBtn.addEventListener('click', () => {
+            editMode = 'insert';
+            insertModeBtn.classList.add('active');
+            overwriteModeBtn.classList.remove('active');
+            clickSound.play();
+        });
+        overwriteModeBtn.addEventListener('click', () => {
+            editMode = 'overwrite';
+            overwriteModeBtn.classList.add('active');
+            insertModeBtn.classList.remove('active');
+            clickSound.play();
+        });
+
+        // --- Main Actions ---
+        processBtn.addEventListener('click', processAndSendAudio);
+        newSessionBtn.addEventListener('click', resetToStart);
+        copyBtn.addEventListener('click', copyFormattedText);
+        saveBtn.addEventListener('click', saveTextToFile);
+    }
+    
+    // --- Text Formatting & Output ---
+    function formatTextAsHtml(text) {
+        if (!text) return "";
+        const lines = text.split('\n');
+        const formattedLines = lines.map(line => {
+            let processedLine = line.trim();
+            const boldStyle = 'font-weight:bold;';
+            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, `<span style="${boldStyle}">$1</span>`);
+            if (!processedLine.includes(boldStyle) && processedLine.length > 0 && processedLine === processedLine.toUpperCase()) {
+                processedLine = `<span style="${boldStyle}">${processedLine}</span>`;
+            }
+            return processedLine;
+        });
+        return formattedLines.join('<br>');
+    }
+    
+    function copyFormattedText() {
+        const htmlContent = resultText.innerHTML;
+        const wordCompatibleHtml = htmlContent.replace(/<br\s*\/?>/gi, '</p><p>');
+        const styledHtml = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+            <head><meta charset="utf-8"><style>p { margin: 0; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; } span[style*="font-weight:bold"] { font-weight: bold !important; }</style></head>
+            <body><p>${wordCompatibleHtml}</p></body>
+            </html>`;
+        const plainText = resultText.innerText;
+        try {
+            const htmlBlob = new Blob([styledHtml], { type: 'text/html' });
+            const textBlob = new Blob([plainText], { type: 'text/plain' });
+            const clipboardItem = new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob });
+            navigator.clipboard.write([clipboardItem])
+                .then(() => alert("Rapport copié dans le presse-papiers avec formatage !"))
+                .catch(err => { console.error("Échec de la copie moderne : ", err); fallbackCopy(styledHtml); });
+        } catch (error) {
+            console.error("L'API Clipboard moderne n'est pas prise en charge : ", error);
+            fallbackCopy(styledHtml);
+        }
+    }
+
+    function fallbackCopy(htmlContent) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        document.body.appendChild(tempDiv);
+        const range = document.createRange();
+        range.selectNodeContents(tempDiv);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        try {
+            if (!document.execCommand('copy')) throw new Error('Copy command failed');
+            alert("Rapport copié dans le presse-papiers avec formatage !");
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            navigator.clipboard.writeText(resultText.innerText)
+                .then(() => alert("Rapport copié (texte brut uniquement)"))
+                .catch(() => alert("Échec de la copie du rapport"));
+        } finally {
+            document.body.removeChild(tempDiv);
+            selection.removeAllRanges();
+        }
+    }
+    
+    function saveTextToFile() {
+        const blob = new Blob([resultText.innerText], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `radiology_report_${Date.now()}.txt`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+});
+</script>
+
+</body>
+</html>
