@@ -1116,7 +1116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         processBtn.textContent = 'Traitement...';
 
         try {
-            // If currentFile is a recorded blob, convert it to WAV first
+            // Check if we need to convert to WAV
             if (currentFile.type !== 'audio/wav' && originalBuffer) {
                 showProgress("Conversion de l'enregistrement en WAV...");
                 audioBufferToWav(originalBuffer)
@@ -1128,8 +1128,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         handleError(ERROR_TYPES.AUDIO, "WAV conversion failed", error);
                         resetUIafterProcessing();
                     });
-            } else {
+            } else if (currentFile instanceof Blob && currentFile.size > 0) {
+                // If it's already a blob (from recording), send it directly
                 sendFileToServer();
+            } else if (currentFile instanceof File) {
+                // If it's a file from upload, send it
+                sendFileToServer();
+            } else {
+                handleError(ERROR_TYPES.PROCESSING, 'Invalid audio file');
+                resetUIafterProcessing();
             }
         } catch (error) {
             handleError(ERROR_TYPES.PROCESSING, 'Audio processing failed', error);
@@ -1229,7 +1236,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             wavesurfer.on('ready', () => {
-                originalBuffer = wavesurfer.getDecodedData ? wavesurfer.getDecodedData() : null;
+                // Try to get the decoded data from the backend
+                if (wavesurfer.backend && wavesurfer.backend.buffer) {
+                    originalBuffer = wavesurfer.backend.buffer;
+                } else if (wavesurfer.backend && wavesurfer.backend.peaks) {
+                    // Fallback for MediaElement backend
+                    originalBuffer = null; // Will be handled differently
+                }
                 updateRecorderUI();
                 updateProgressBar(0, wavesurfer.getDuration());
             });
@@ -1486,20 +1499,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const finalBuffer = await processAudioEditing(newRecordingBuffer);
             
-            // Load the final buffer into wavesurfer
+            // Convert the audio buffer back to blob for wavesurfer
+            const wavBlob = await audioBufferToBlob(finalBuffer);
+            
+            // Load the blob into wavesurfer
             if (wavesurfer) {
-                wavesurfer.loadDecodedData(finalBuffer);
+                const blobUrl = URL.createObjectURL(wavBlob);
+                wavesurfer.load(blobUrl);
+                
+                // Clean up the blob URL after loading
+                wavesurfer.once('ready', () => {
+                    URL.revokeObjectURL(blobUrl);
+                });
             }
             
             // Store the buffer for WAV conversion
             originalBuffer = finalBuffer;
-            currentFile = new Blob([]); // Placeholder - will be converted to WAV on send
+            currentFile = wavBlob; // Store the blob for sending
             
         } catch (error) {
             handleError(ERROR_TYPES.AUDIO, 'Failed to process recording', error);
         } finally {
             updateProcessButtonState();
             resetRecordingState();
+        }
+    }
+    
+    // Helper function to convert AudioBuffer to Blob
+    async function audioBufferToBlob(buffer) {
+        try {
+            // Convert to WAV format
+            const wavBlob = await audioBufferToWav(buffer);
+            return wavBlob;
+        } catch (error) {
+            // Fallback to WebM if WAV conversion fails
+            console.warn('WAV conversion failed, using WebM fallback:', error);
+            
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const audioContext = new AudioContext();
+            const mediaStreamDestination = audioContext.createMediaStreamDestination();
+            const bufferSource = audioContext.createBufferSource();
+            
+            bufferSource.buffer = buffer;
+            bufferSource.connect(mediaStreamDestination);
+            
+            const recorder = new MediaRecorder(mediaStreamDestination.stream);
+            const chunks = [];
+            
+            return new Promise((resolve, reject) => {
+                recorder.ondataavailable = e => chunks.push(e.data);
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    resolve(blob);
+                };
+                recorder.onerror = reject;
+                
+                recorder.start();
+                bufferSource.start();
+                bufferSource.onended = () => recorder.stop();
+            });
         }
     }
 
